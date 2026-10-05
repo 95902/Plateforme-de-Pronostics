@@ -1,19 +1,14 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import type { User } from '../lib/types';
 
 interface LayoutProps {
-  user: any;
+  user: User | null;
+  onLogout: () => void;
   children: ReactNode;
 }
 
-export default function Layout({ user, children }: LayoutProps) {
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
-  };
+export default function Layout({ user, onLogout, children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -40,6 +35,12 @@ export default function Layout({ user, children }: LayoutProps) {
                 Races
               </Link>
               <Link
+                to="/bets"
+                className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                My Bets
+              </Link>
+              <Link
                 to="/strategies"
                 className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
               >
@@ -61,7 +62,7 @@ export default function Layout({ user, children }: LayoutProps) {
               </div>
               <div className="text-sm text-gray-700">{user?.username}</div>
               <button
-                onClick={handleLogout}
+                onClick={onLogout}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
               >
                 Logout

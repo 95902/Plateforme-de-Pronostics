@@ -24,9 +24,12 @@ export class BetsController {
       const { status, limit = '20', offset = '0' } = req.query;
 
       let query = `
-        SELECT b.*, r.name as race_name, r.date as race_date
+        SELECT b.*, r.name as race_name, r.date as race_date, r.time as race_time,
+               r.status as race_status, h.name as hippodrome_name, s.name as strategy_name
         FROM bets b
         JOIN races r ON b.race_id = r.id
+        JOIN hippodromes h ON r.hippodrome_id = h.id
+        LEFT JOIN strategies s ON b.strategy_id = s.id
         WHERE b.user_id = $1
       `;
       const params: any[] = [req.user.id];

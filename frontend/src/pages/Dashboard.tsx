@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { racesAPI, bankrollAPI } from '../lib/api';
+import type { BankrollStatistics, RaceSummary, User } from '../lib/types';
 
-export default function Dashboard({ user }: { user: any }) {
-  const [upcomingRaces, setUpcomingRaces] = useState([]);
-  const [statistics, setStatistics] = useState<any>(null);
+export default function Dashboard({ user }: { user: User | null }) {
+  const [upcomingRaces, setUpcomingRaces] = useState<RaceSummary[]>([]);
+  const [statistics, setStatistics] = useState<BankrollStatistics | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -82,7 +83,7 @@ export default function Dashboard({ user }: { user: any }) {
           {upcomingRaces.length === 0 ? (
             <div className="p-6 text-center text-gray-500">No upcoming races</div>
           ) : (
-            upcomingRaces.map((race: any) => (
+            upcomingRaces.map((race) => (
               <Link
                 key={race.id}
                 to={`/races/${race.id}`}

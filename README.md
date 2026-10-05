@@ -144,14 +144,18 @@ An admin account is also created (can record race results and cancel races):
 ## 📊 Features
 
 ### 1. Authentication System
+- Login and sign-up (new accounts start with 1000€)
 - JWT-based authentication
 - Secure password hashing with bcrypt
 - Protected routes
 
-### 2. Race Management
+### 2. Race Management & Betting
 - View upcoming and past races
-- Detailed race information with runners
+- Detailed race information with runners and the official result
 - Filter by status and hippodrome
+- Bet slip on the race page: pick the horses in the predictions table, choose the bet type and stake, see the estimated payout
+- **My Bets** page: history with status filters, cancel pending bets until the race starts
+- Admins can record the finishing order (or cancel the race) directly from the race page
 
 ### 3. AI Predictions
 - **Multi-criteria scoring algorithm:**
