@@ -1,7 +1,12 @@
-import { Pool } from 'pg';
+import pg from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+const { Pool } = pg;
+
+// Return NUMERIC/DECIMAL columns as JS numbers instead of strings
+pg.types.setTypeParser(pg.types.builtins.NUMERIC, (value: string) => parseFloat(value));
 
 export const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 interface LayoutProps {
   user: any;

@@ -111,7 +111,10 @@ export class RacesController {
           r.id, r.saddle_number, r.barrier_draw, r.weight_carried, r.handicap,
           r.morning_odds, r.final_odds, r.prediction_score, r.confidence_level,
           h.id as horse_id, h.name as horse_name, h.age as horse_age, h.sex as horse_sex,
-          h.career_total_races, h.career_wins, h.career_win_rate,
+          h.career_total_races, h.career_wins,
+          CASE WHEN h.career_total_races > 0
+            THEN ROUND(h.career_wins::numeric / h.career_total_races, 4)
+            ELSE 0 END as career_win_rate,
           j.id as jockey_id, j.name as jockey_name, j.weight as jockey_weight,
           j.career_win_rate as jockey_win_rate,
           t.id as trainer_id, t.name as trainer_name, t.stable_name,

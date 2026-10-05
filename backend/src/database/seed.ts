@@ -340,16 +340,4 @@ async function seed() {
   }
 }
 
-// Install bcryptjs if needed
-try {
-  await seed();
-} catch (error) {
-  if (error.code === 'ERR_MODULE_NOT_FOUND' && error.message.includes('bcryptjs')) {
-    console.log('Installing bcryptjs...');
-    const { execSync } = await import('child_process');
-    execSync('npm install bcryptjs @types/bcryptjs', { stdio: 'inherit' });
-    console.log('Please run the seed script again');
-    process.exit(0);
-  }
-  throw error;
-}
+seed();
