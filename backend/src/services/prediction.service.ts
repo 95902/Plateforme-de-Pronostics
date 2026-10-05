@@ -1,5 +1,9 @@
 import pool from '../config/database.js';
 import { Prediction } from '../types/index.js';
+import { analyzeRace } from './strategy-engine.js';
+
+/** A runner is a value bet when its expected profit is at least 10% of the stake */
+const VALUE_BET_MIN_EDGE = 0.1;
 
 export class PredictionService {
   /**
@@ -53,28 +57,6 @@ export class PredictionService {
   }
 
   /**
-   * Calculate Expected Value (EV)
-   */
-  calculateEV(probability: number, odds: number): number {
-    const potentialWin = odds;
-    const expectedReturn = probability * potentialWin;
-    const expectedLoss = (1 - probability);
-
-    return (expectedReturn - expectedLoss) * 100; // Return as percentage
-  }
-
-  /**
-   * Check if a runner is a value bet
-   */
-  isValueBet(score: number, odds: number): boolean {
-    const impliedProbability = 1 / odds;
-    const calculatedProbability = score / 100;
-
-    // Value bet if our calculated probability is significantly higher than implied
-    return calculatedProbability > (impliedProbability * 1.1); // 10% edge
-  }
-
-  /**
    * Generate predictions for a race
    */
   async generateRacePredictions(raceId: number): Promise<Prediction[]> {
@@ -107,25 +89,40 @@ export class PredictionService {
         [raceId]
       );
 
-      const predictions: Prediction[] = [];
+      const scored = runnersResult.rows.map((runner) => ({
+        runner,
+        odds: runner.final_odds || runner.morning_odds || 0,
+        score: this.calculatePredictionScore(runner, race)
+      }));
 
-      for (const runner of runnersResult.rows) {
-        const score = this.calculatePredictionScore(runner, race);
-        const confidenceLevel = this.getConfidenceLevel(score);
-        const isValue = this.isValueBet(score, runner.final_odds || 1);
-        const ev = isValue ? this.calculateEV(score / 100, runner.final_odds || 1) : 0;
+      // Same probability model as the strategy engine: scores normalized over the race
+      const analysisByRunner = new Map(
+        analyzeRace(
+          scored.map(({ runner, odds, score }) => ({
+            runner_id: runner.id,
+            saddle_number: runner.saddle_number,
+            odds,
+            score
+          }))
+        ).map((analysis) => [analysis.runner_id, analysis])
+      );
 
-        predictions.push({
+      const predictions: Prediction[] = scored.map(({ runner, odds, score }) => {
+        const analysis = analysisByRunner.get(runner.id);
+        const isValue = analysis !== undefined && analysis.expected_value >= VALUE_BET_MIN_EDGE;
+
+        return {
           runner_id: runner.id,
           horse_name: runner.horse_name,
           saddle_number: runner.saddle_number,
-          odds: runner.final_odds || runner.morning_odds || 0,
+          odds,
           prediction_score: Math.round(score * 100) / 100,
-          confidence_level: confidenceLevel,
+          confidence_level: this.getConfidenceLevel(score),
           is_value_bet: isValue,
-          expected_value: isValue ? Math.round(ev * 100) / 100 : undefined
-        });
-      }
+          // Expected profit in % of the stake
+          expected_value: isValue ? Math.round(analysis.expected_value * 10000) / 100 : undefined
+        };
+      });
 
       // Sort by prediction score descending
       predictions.sort((a, b) => b.prediction_score - a.prediction_score);

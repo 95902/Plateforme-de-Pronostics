@@ -11,5 +11,7 @@ router.get('/:id', strategiesController.getStrategyById.bind(strategiesControlle
 router.post('/', strategiesController.createStrategy.bind(strategiesController));
 router.put('/:id', strategiesController.updateStrategy.bind(strategiesController));
 router.delete('/:id', strategiesController.deleteStrategy.bind(strategiesController));
+router.post('/:id/backtest', strategiesController.backtest.bind(strategiesController));
+router.get('/:id/simulations', strategiesController.getSimulations.bind(strategiesController));
 
 export default router;

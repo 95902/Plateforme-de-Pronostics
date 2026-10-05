@@ -83,6 +83,9 @@ export const strategiesAPI = {
   createStrategy: (data: StrategyInput) => api.post('/strategies', data),
   updateStrategy: (id: number, data: Partial<StrategyInput>) => api.put(`/strategies/${id}`, data),
   deleteStrategy: (id: number) => api.delete(`/strategies/${id}`),
+  backtest: (id: number, config: { from: string; to: string; initial_bankroll: number }) =>
+    api.post(`/strategies/${id}/backtest`, config),
+  getSimulations: (id: number) => api.get(`/strategies/${id}/simulations`),
 };
 
 export const betsAPI = {

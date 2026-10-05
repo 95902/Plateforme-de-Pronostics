@@ -149,3 +149,38 @@ export interface SettlementSummary {
   lost: number;
   refunded: number;
 }
+
+export interface BacktestSummary {
+  races_analyzed: number;
+  races_bet: number;
+  total_bets: number;
+  winning_bets: number;
+  win_rate: number;
+  total_staked: number;
+  total_returned: number;
+  net_profit: number;
+  roi: number;
+  max_drawdown: number;
+  initial_bankroll: number;
+  final_bankroll: number;
+  busted: boolean;
+}
+
+export interface Simulation {
+  id: number;
+  created_at: string;
+  config: { from: string; to: string; initial_bankroll: number };
+  results: {
+    summary: BacktestSummary;
+    equity_curve: { date: string; bankroll: number }[];
+    recent_bets: {
+      race_id: number;
+      date: string;
+      saddle_number: number;
+      odds: number;
+      stake: number;
+      won: boolean;
+      payout: number;
+    }[];
+  };
+}

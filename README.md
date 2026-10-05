@@ -165,7 +165,8 @@ An admin account is also created (can record race results and cancel races):
   - Conditions course (10%)
   - Valeur cote (10%)
 - Confidence levels (High/Medium/Low)
-- Value bet detection (Expected Value > 0)
+- Win probabilities: each runner's share of the race's total score
+- Value bet detection: expected profit (probability × odds − 1) of at least 10%
 - Top 5 recommendations per race
 
 ### 4. Betting Strategies
@@ -178,7 +179,17 @@ An admin account is also created (can record race results and cancel races):
 - **FIBONACCI**: Fibonacci progression
 - **DUTCHING**: Distribute stakes across multiple horses
 - **FIXED_PERCENTAGE**: Fixed % of bankroll
-- **CUSTOM**: Custom strategy rules
+- **CUSTOM**: Custom strategy rules (saved, not executed)
+
+#### Backtesting
+- Replay a strategy on finished races over a chosen period with a virtual bankroll (`POST /api/strategies/:id/backtest`)
+- Reports bets, win rate, ROI, net profit, max drawdown, the bankroll curve and the last simulated bets; stops when the bankroll can no longer cover the stakes
+- Runs are stored in the `simulations` table (`GET /api/strategies/:id/simulations`)
+- Simplified model: win bets at fixed odds, predictions computed with today's horse statistics
+
+#### Automatic execution
+- Every minute, each **active** strategy places its win bets on scheduled races starting within the next hour, through the same validated path as manual bets
+- At most one set of bets per strategy and race; progressions (Martingale, Fibonacci) resume from the strategy's settled bets
 
 ### 5. Bet Settlement
 - Bets are settled when an admin records a race's results (`POST /api/races/:id/results`)
@@ -253,6 +264,8 @@ An admin account is also created (can record race results and cancel races):
 - `POST /api/strategies` - Create strategy
 - `PUT /api/strategies/:id` - Update strategy
 - `DELETE /api/strategies/:id` - Delete strategy
+- `POST /api/strategies/:id/backtest` - Backtest on past races (`{ from, to, initial_bankroll }`, all optional)
+- `GET /api/strategies/:id/simulations` - Latest backtests of a strategy
 
 ### Bets
 - `GET /api/bets` - List user bets
@@ -270,7 +283,7 @@ The database seeder creates:
 - **100 horses** with realistic stats
 - **50 jockeys** with career records
 - **30 trainers** with stable information
-- **~500 historical races** (6 months of data)
+- **~600 historical races** (6 months of data): odds carry a realistic ~18% margin and the finishing order is drawn at random, weighted by the odds
 - **~50 upcoming races** (next 7 days)
 - **1 demo user** with initial bankroll
 - **1 admin user**
@@ -289,8 +302,8 @@ The database seeder creates:
 ## 🚧 Future Enhancements
 
 ### Backend
-- [ ] Strategy execution engine (auto-betting)
-- [ ] Simulation/backtesting service
+- [x] Strategy execution engine (auto-betting)
+- [x] Simulation/backtesting service
 - [ ] CSV import for race data
 - [ ] Real-time odds updates
 - [ ] WebSocket for live race updates
@@ -305,7 +318,7 @@ The database seeder creates:
 - [ ] Mobile-responsive improvements
 - [ ] Dark mode
 - [ ] Strategy builder UI
-- [ ] Simulation interface
+- [x] Simulation interface
 - [ ] Export data to CSV/PDF
 
 ### Features

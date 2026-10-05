@@ -1,6 +1,9 @@
 import { Response } from 'express';
 import pool from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
+import strategyService from '../services/strategy.service.js';
+import { parseAmount, parseId } from '../utils/validation.js';
+import { HttpError, sendError } from '../utils/http-error.js';
 
 const STRATEGY_TYPES = [
   'FAVORITE',
@@ -12,6 +15,11 @@ const STRATEGY_TYPES = [
   'FIXED_PERCENTAGE',
   'CUSTOM'
 ];
+
+const isValidDate = (value: unknown): value is string =>
+  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+
+const toISODate = (date: Date) => date.toISOString().slice(0, 10);
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -153,6 +161,60 @@ export class StrategiesController {
     } catch (error) {
       console.error('Delete strategy error:', error);
       res.status(500).json({ error: { message: 'Failed to delete strategy', status: 500 } });
+    }
+  }
+
+  async backtest(req: AuthRequest, res: Response) {
+    if (!req.user) {
+      return sendError(res, 401, 'Unauthorized');
+    }
+
+    const strategyId = parseId(req.params.id);
+    if (!strategyId) return sendError(res, 400, 'Invalid strategy id');
+
+    // Defaults: the last 12 months with a 1000€ virtual bankroll
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const { from = toISODate(oneYearAgo), to = toISODate(new Date()), initial_bankroll = 1000 } = req.body ?? {};
+
+    if (!isValidDate(from) || !isValidDate(to) || from > to) {
+      return sendError(res, 400, 'from and to must be dates (YYYY-MM-DD) with from <= to');
+    }
+    const initialBankroll = parseAmount(initial_bankroll);
+    if (!initialBankroll) return sendError(res, 400, 'Invalid initial_bankroll');
+
+    try {
+      const simulation = await strategyService.backtest(req.user.id, strategyId, {
+        from,
+        to,
+        initial_bankroll: initialBankroll
+      });
+      res.status(201).json(simulation);
+    } catch (error) {
+      if (error instanceof HttpError) {
+        return sendError(res, error.status, error.message);
+      }
+      console.error('Backtest error:', error);
+      sendError(res, 500, 'Backtest failed');
+    }
+  }
+
+  async getSimulations(req: AuthRequest, res: Response) {
+    if (!req.user) {
+      return sendError(res, 401, 'Unauthorized');
+    }
+
+    const strategyId = parseId(req.params.id);
+    if (!strategyId) return sendError(res, 400, 'Invalid strategy id');
+
+    try {
+      res.json(await strategyService.listSimulations(req.user.id, strategyId));
+    } catch (error) {
+      if (error instanceof HttpError) {
+        return sendError(res, error.status, error.message);
+      }
+      console.error('Get simulations error:', error);
+      sendError(res, 500, 'Failed to fetch simulations');
     }
   }
 }

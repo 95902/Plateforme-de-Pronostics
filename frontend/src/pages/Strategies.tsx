@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { strategiesAPI, getErrorMessage } from '../lib/api';
 import type { Strategy, StrategyType } from '../lib/types';
 
@@ -16,11 +16,15 @@ const DEFAULT_PARAMETERS: Record<StrategyType, Record<string, number>> = {
 
 const STRATEGY_TYPES = Object.keys(DEFAULT_PARAMETERS) as StrategyType[];
 
+// Loaded on demand: it pulls in the charting library
+const BacktestPanel = lazy(() => import('../components/BacktestPanel'));
+
 export default function Strategies() {
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [backtestOpen, setBacktestOpen] = useState<number | null>(null);
 
   useEffect(() => {
     fetchStrategies();
@@ -116,7 +120,13 @@ export default function Strategies() {
           <div>
             <strong>DUTCHING:</strong> Spread bet across multiple horses
           </div>
+          <div>
+            <strong>FIBONACCI:</strong> Fibonacci stake progression after losses
+          </div>
         </div>
+        <p className="mt-4 text-sm text-blue-900">
+          🤖 Active strategies place their bets automatically on races starting within the next hour.
+        </p>
       </div>
 
       {/* Strategies List */}
@@ -124,7 +134,7 @@ export default function Strategies() {
         <div className="bg-white rounded-lg shadow p-12 text-center">
           <p className="text-gray-500">No strategies configured yet</p>
           <p className="text-sm text-gray-400 mt-2">
-            Create a strategy to track its performance
+            Create a strategy, backtest it on past races, then activate it
           </p>
         </div>
       ) : (
@@ -187,6 +197,14 @@ export default function Strategies() {
                   </div>
                 </div>
                 <div className="flex gap-2 ml-4">
+                  {strategy.type !== 'CUSTOM' && (
+                    <button
+                      onClick={() => setBacktestOpen(backtestOpen === strategy.id ? null : strategy.id)}
+                      className="px-3 py-1 text-sm font-medium rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    >
+                      {backtestOpen === strategy.id ? 'Hide backtest' : 'Backtest'}
+                    </button>
+                  )}
                   <button
                     onClick={() => toggleActive(strategy)}
                     className="px-3 py-1 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -235,6 +253,12 @@ export default function Strategies() {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {backtestOpen === strategy.id && (
+                <Suspense fallback={<div className="mt-6 text-sm text-gray-500">Loading backtest...</div>}>
+                  <BacktestPanel strategy={strategy} />
+                </Suspense>
               )}
             </div>
           ))}
@@ -334,7 +358,8 @@ function StrategyForm({ onCreated }: { onCreated: () => void }) {
             className="mt-1 block w-full px-3 py-2 border rounded-md font-mono text-sm"
           />
           <p className="mt-1 text-xs text-gray-500">
-            Parameters are saved with the strategy. Automatic execution will come with the strategy engine.
+            Active strategies bet automatically (win bets) on races starting within the next hour. CUSTOM strategies are
+            saved but not executed.
           </p>
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-700">

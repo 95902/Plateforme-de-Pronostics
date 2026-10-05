@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import pool from './config/database.js';
 import settlementService from './services/settlement.service.js';
+import strategyService from './services/strategy.service.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -18,7 +19,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3333;
 const HOST = process.env.HOST || '0.0.0.0';
-const SETTLEMENT_INTERVAL_MS = 60_000;
+const BACKGROUND_JOBS_INTERVAL_MS = 60_000;
 
 // Middleware
 app.use(cors({
@@ -94,8 +95,33 @@ async function startServer() {
         console.error('Settlement job error:', error);
       }
     };
-    await settlePendingBets();
-    setInterval(settlePendingBets, SETTLEMENT_INTERVAL_MS);
+
+    // Let active strategies bet on races starting soon
+    const runActiveStrategies = async () => {
+      try {
+        const { placed, skipped } = await strategyService.runActiveStrategies();
+        if (placed + skipped > 0) {
+          console.log(`🤖 Strategies placed ${placed} bet(s), skipped ${skipped}`);
+        }
+      } catch (error) {
+        console.error('Strategy runner error:', error);
+      }
+    };
+
+    // Run the jobs one after the other and never let two runs overlap
+    let jobsRunning = false;
+    const runBackgroundJobs = async () => {
+      if (jobsRunning) return;
+      jobsRunning = true;
+      try {
+        await settlePendingBets();
+        await runActiveStrategies();
+      } finally {
+        jobsRunning = false;
+      }
+    };
+    await runBackgroundJobs();
+    setInterval(runBackgroundJobs, BACKGROUND_JOBS_INTERVAL_MS);
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
