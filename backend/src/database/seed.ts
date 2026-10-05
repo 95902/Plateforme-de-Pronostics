@@ -25,6 +25,15 @@ async function seed() {
       [userId, 'DEPOSIT', 1000, 0, 1000, 'Initial deposit']
     );
 
+    // Admin user (can record race results and cancel races)
+    const adminPassword = await bcrypt.hash('Admin123!', 10);
+    await pool.query(
+      `INSERT INTO users (email, username, password, role, bankroll)
+       VALUES ($1, $2, $3, $4, $5)`,
+      ['admin@hippodrome.com', 'admin', adminPassword, 'admin', 0]
+    );
+    console.log('✅ Admin user created (email: admin@hippodrome.com, password: Admin123!)');
+
     // 2. Seed Hippodromes
     const hippodromes = [
       ['Vincennes', 'Paris', 'France', 'Trot', 'Sable', 'Main gauche', 50000],
@@ -331,7 +340,8 @@ async function seed() {
     console.log('\n📝 Demo Credentials:');
     console.log('   Email: demo@hippodrome.com');
     console.log('   Password: Demo123!');
-    console.log('   Initial Bankroll: 1000€\n');
+    console.log('   Initial Bankroll: 1000€');
+    console.log('   Admin: admin@hippodrome.com / Admin123!\n');
 
     process.exit(0);
   } catch (error) {

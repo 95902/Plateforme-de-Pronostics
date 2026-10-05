@@ -10,7 +10,7 @@
     "start": "node build/server.js",
     "migrate": "tsx src/database/migrate.ts",
     "seed": "tsx src/database/seed.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "keywords": [
     "horse-racing",

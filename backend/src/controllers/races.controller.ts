@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import pool from '../config/database.js';
+import settlementService from '../services/settlement.service.js';
+import { parseId } from '../utils/validation.js';
+import { HttpError, sendError } from '../utils/http-error.js';
 
 export class RacesController {
   async getRaces(req: Request, res: Response) {
@@ -196,6 +199,128 @@ export class RacesController {
       res.status(500).json({
         error: { message: 'Failed to fetch today races', status: 500 }
       });
+    }
+  }
+
+  /**
+   * Admin: record the official result of a race, mark it finished and settle its bets.
+   * Body: { results: [{ runner_id, finish_position, finish_time?, disqualified? }] }
+   */
+  async recordResults(req: Request, res: Response) {
+    const raceId = parseId(req.params.id);
+    if (!raceId) return sendError(res, 400, 'Invalid race id');
+
+    const { results } = req.body;
+    if (!Array.isArray(results) || results.length === 0) {
+      return sendError(res, 400, 'results must be a non-empty array');
+    }
+
+    const rows = results.map((row: any) => ({
+      runner_id: parseId(row?.runner_id),
+      finish_position: parseId(row?.finish_position),
+      finish_time: typeof row?.finish_time === 'string' ? row.finish_time.slice(0, 20) : null,
+      disqualified: row?.disqualified === true
+    }));
+
+    if (rows.some((row) => !row.runner_id || !row.finish_position)) {
+      return sendError(res, 400, 'Each result needs a valid runner_id and finish_position');
+    }
+    if (new Set(rows.map((row) => row.runner_id)).size !== rows.length) {
+      return sendError(res, 400, 'A runner can only appear once');
+    }
+    if (new Set(rows.map((row) => row.finish_position)).size !== rows.length) {
+      return sendError(res, 400, 'Finish positions must be unique');
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const raceResult = await client.query(
+        'SELECT status FROM races WHERE id = $1 FOR UPDATE',
+        [raceId]
+      );
+      if (raceResult.rows.length === 0) {
+        throw new HttpError(404, 'Race not found');
+      }
+      if (!['scheduled', 'running'].includes(raceResult.rows[0].status)) {
+        throw new HttpError(409, `Race is already ${raceResult.rows[0].status}`);
+      }
+
+      const runnerIds = rows.map((row) => row.runner_id);
+      const runnersResult = await client.query(
+        'SELECT id FROM runners WHERE race_id = $1 AND id = ANY($2::int[])',
+        [raceId, runnerIds]
+      );
+      if (runnersResult.rows.length !== runnerIds.length) {
+        throw new HttpError(400, 'All runners must belong to this race');
+      }
+
+      for (const row of rows) {
+        await client.query(
+          `INSERT INTO results (race_id, runner_id, finish_position, finish_time, disqualified)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [raceId, row.runner_id, row.finish_position, row.finish_time, row.disqualified]
+        );
+      }
+
+      await client.query(`UPDATE races SET status = 'finished' WHERE id = $1`, [raceId]);
+
+      const settlement = await settlementService.settleRaceInTransaction(client, raceId);
+
+      await client.query('COMMIT');
+
+      res.status(201).json({ race_id: raceId, status: 'finished', settlement });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (error instanceof HttpError) {
+        return sendError(res, error.status, error.message);
+      }
+      console.error('Record results error:', error);
+      sendError(res, 500, 'Failed to record results');
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Admin: cancel a race and refund its pending bets.
+   */
+  async cancelRace(req: Request, res: Response) {
+    const raceId = parseId(req.params.id);
+    if (!raceId) return sendError(res, 400, 'Invalid race id');
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const raceResult = await client.query(
+        'SELECT status FROM races WHERE id = $1 FOR UPDATE',
+        [raceId]
+      );
+      if (raceResult.rows.length === 0) {
+        throw new HttpError(404, 'Race not found');
+      }
+      if (!['scheduled', 'running'].includes(raceResult.rows[0].status)) {
+        throw new HttpError(409, `Race is already ${raceResult.rows[0].status}`);
+      }
+
+      await client.query(`UPDATE races SET status = 'cancelled' WHERE id = $1`, [raceId]);
+
+      const settlement = await settlementService.settleRaceInTransaction(client, raceId);
+
+      await client.query('COMMIT');
+
+      res.json({ race_id: raceId, status: 'cancelled', settlement });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (error instanceof HttpError) {
+        return sendError(res, error.status, error.message);
+      }
+      console.error('Cancel race error:', error);
+      sendError(res, 500, 'Failed to cancel race');
+    } finally {
+      client.release();
     }
   }
 }

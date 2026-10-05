@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pool from './config/database.js';
+import settlementService from './services/settlement.service.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -17,6 +18,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3333;
 const HOST = process.env.HOST || '0.0.0.0';
+const SETTLEMENT_INTERVAL_MS = 60_000;
 
 // Middleware
 app.use(cors({
@@ -79,6 +81,21 @@ async function startServer() {
       console.log(`   Health check: http://${HOST}:${PORT}/health`);
       console.log(`   API base: http://${HOST}:${PORT}/api\n`);
     });
+
+    // Settle bets of finished/cancelled races that still have pending bets
+    // (e.g. results imported directly into the database)
+    const settlePendingBets = async () => {
+      try {
+        const summaries = await settlementService.settlePendingRaces();
+        for (const summary of summaries) {
+          console.log(`💰 Race ${summary.race_id} settled: ${summary.won} won, ${summary.lost} lost, ${summary.refunded} refunded`);
+        }
+      } catch (error) {
+        console.error('Settlement job error:', error);
+      }
+    };
+    await settlePendingBets();
+    setInterval(settlePendingBets, SETTLEMENT_INTERVAL_MS);
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);

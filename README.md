@@ -136,6 +136,11 @@ Open http://localhost:5173 in your browser and login with:
 - **Password**: `Demo123!`
 - **Initial Bankroll**: 1000€
 
+An admin account is also created (can record race results and cancel races):
+
+- **Email**: `admin@hippodrome.com`
+- **Password**: `Admin123!`
+
 ## 📊 Features
 
 ### 1. Authentication System
@@ -171,7 +176,16 @@ Open http://localhost:5173 in your browser and login with:
 - **FIXED_PERCENTAGE**: Fixed % of bankroll
 - **CUSTOM**: Custom strategy rules
 
-### 5. Bankroll Management
+### 5. Bet Settlement
+- Bets are settled when an admin records a race's results (`POST /api/races/:id/results`)
+- A background job also settles, at startup and every minute, any finished race that still has pending bets (e.g. results imported directly into the database)
+- Fixed odds: the odds are snapshotted when the bet is placed, and a winning bet pays `stake × odds` (`potential_payout`)
+- **Simple** wins if the horse finishes 1st; **Couplé / Trio / Quarté / Quinté** win if the selections are exactly the first 2 / 3 / 4 / 5 finishers, in any order
+- Disqualified runners are ignored when ranking
+- Bets on a cancelled race are refunded
+- Strategy statistics (bets, win rate, ROI, average odds) are recomputed from settled bets
+
+### 6. Bankroll Management
 - Real-time bankroll tracking
 - Transaction history
 - Deposit/Withdrawal system
@@ -181,7 +195,7 @@ Open http://localhost:5173 in your browser and login with:
   - Net profit/loss
   - Exposure monitoring
 
-### 6. Dashboard & Analytics
+### 7. Dashboard & Analytics
 - Overview of key metrics
 - Upcoming races recommendations
 - Performance charts
@@ -215,6 +229,8 @@ Open http://localhost:5173 in your browser and login with:
 - `GET /api/races/:id` - Get race details
 - `GET /api/races/upcoming` - Get upcoming races
 - `GET /api/races/today` - Get today's races
+- `POST /api/races/:id/results` - *(admin)* Record the official result, mark the race finished and settle its bets
+- `POST /api/races/:id/cancel` - *(admin)* Cancel a race and refund its pending bets
 
 ### Predictions
 - `GET /api/predictions/race/:raceId` - Get race predictions
@@ -253,6 +269,7 @@ The database seeder creates:
 - **~500 historical races** (6 months of data)
 - **~50 upcoming races** (next 7 days)
 - **1 demo user** with initial bankroll
+- **1 admin user**
 - **2 demo strategies** (Favorite & Value Betting)
 
 ## 🔒 Security Features
@@ -302,6 +319,13 @@ The database seeder creates:
 ```bash
 cd backend
 npm run migrate
+```
+
+### Running Tests
+
+```bash
+cd backend
+npm test
 ```
 
 ### Re-seeding Database

@@ -2,6 +2,7 @@ import { Response } from 'express';
 import pool from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { parseAmount, parseId } from '../utils/validation.js';
+import { HttpError, sendError } from '../utils/http-error.js';
 
 const SELECTIONS_BY_BET_TYPE: Record<string, number> = {
   simple: 1,
@@ -11,14 +12,7 @@ const SELECTIONS_BY_BET_TYPE: Record<string, number> = {
   quinte: 5
 };
 
-class HttpError extends Error {
-  constructor(public status: number, message: string) {
-    super(message);
-  }
-}
-
-const badRequest = (res: Response, message: string) =>
-  res.status(400).json({ error: { message, status: 400 } });
+const badRequest = (res: Response, message: string) => sendError(res, 400, message);
 
 export class BetsController {
   async getBets(req: AuthRequest, res: Response) {
@@ -169,7 +163,7 @@ export class BetsController {
     } catch (error) {
       await client.query('ROLLBACK');
       if (error instanceof HttpError) {
-        return res.status(error.status).json({ error: { message: error.message, status: error.status } });
+        return sendError(res, error.status, error.message);
       }
       console.error('Place bet error:', error);
       res.status(500).json({ error: { message: 'Failed to place bet', status: 500 } });
@@ -190,17 +184,21 @@ export class BetsController {
     try {
       await client.query('BEGIN');
 
-      // Lock the bet row so the same bet cannot be refunded twice
-      const betResult = await client.query(
-        `SELECT b.*, r.status as race_status
-         FROM bets b
-         JOIN races r ON b.race_id = r.id
-         WHERE b.id = $1 AND b.user_id = $2
-         FOR UPDATE OF b`,
+      // Lock the race, then the bet (same order as settlement) so the race status
+      // cannot change meanwhile and the same bet cannot be refunded twice
+      const raceResult = await client.query(
+        `SELECT r.status FROM races r
+         WHERE r.id = (SELECT race_id FROM bets WHERE id = $1 AND user_id = $2)
+         FOR SHARE`,
         [betId, req.user.id]
       );
 
-      if (betResult.rows.length === 0) {
+      const betResult = await client.query(
+        'SELECT * FROM bets WHERE id = $1 AND user_id = $2 FOR UPDATE',
+        [betId, req.user.id]
+      );
+
+      if (raceResult.rows.length === 0 || betResult.rows.length === 0) {
         throw new HttpError(404, 'Bet not found');
       }
 
@@ -209,7 +207,7 @@ export class BetsController {
       if (bet.status !== 'pending') {
         throw new HttpError(400, 'Can only cancel pending bets');
       }
-      if (bet.race_status !== 'scheduled') {
+      if (raceResult.rows[0].status !== 'scheduled') {
         throw new HttpError(400, 'Cannot cancel a bet once the race has started');
       }
 
@@ -242,7 +240,7 @@ export class BetsController {
     } catch (error) {
       await client.query('ROLLBACK');
       if (error instanceof HttpError) {
-        return res.status(error.status).json({ error: { message: error.message, status: error.status } });
+        return sendError(res, error.status, error.message);
       }
       console.error('Cancel bet error:', error);
       res.status(500).json({ error: { message: 'Failed to cancel bet', status: 500 } });
