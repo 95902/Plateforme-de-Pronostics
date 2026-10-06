@@ -19,6 +19,8 @@ This platform provides:
 - **PostgreSQL** for database
 - **JWT** for authentication
 - **bcryptjs** for password hashing
+- **helmet** (security headers) & **express-rate-limit** (login/register throttling)
+- **node:test** for unit and integration tests
 
 ### Frontend
 - **React** with **TypeScript**
@@ -29,8 +31,8 @@ This platform provides:
 - **Recharts** for data visualization
 
 ### Infrastructure
-- **Docker** & **Docker Compose** for database
-- **Redis** for caching (optional)
+- **Docker** & **Docker Compose** (PostgreSQL for development, or the full stack)
+- **GitHub Actions** CI
 
 ## 📦 Project Structure
 
@@ -42,12 +44,14 @@ Plateforme-de-Pronostics/
 │   │   ├── controllers/     # Route controllers
 │   │   ├── database/        # Migrations & seeders
 │   │   ├── middleware/      # Auth & other middleware
-│   │   ├── models/          # (Future) ORM models
 │   │   ├── routes/          # API routes
-│   │   ├── services/        # Business logic
+│   │   ├── services/        # Business logic (bets, settlement, strategies, predictions)
 │   │   ├── types/           # TypeScript interfaces
-│   │   ├── utils/           # Utility functions
-│   │   └── server.ts        # Main server file
+│   │   ├── utils/           # Validation & HTTP error helpers
+│   │   ├── app.ts           # Express app (routes & middleware)
+│   │   └── server.ts        # Starts the server and background jobs
+│   ├── test/                # Integration tests (need PostgreSQL)
+│   ├── Dockerfile
 │   ├── .env.example
 │   └── package.json
 ├── frontend/
@@ -57,9 +61,11 @@ Plateforme-de-Pronostics/
 │   │   ├── pages/           # Page components
 │   │   ├── App.tsx          # Main app component
 │   │   └── main.tsx         # Entry point
+│   ├── Dockerfile           # Static build served by nginx
 │   ├── .env.example
 │   └── package.json
-├── docker-compose.yml       # Docker services
+├── .github/workflows/ci.yml # CI: typecheck, lint, tests, build, Docker images
+├── docker-compose.yml       # PostgreSQL, backend, frontend
 └── README.md
 ```
 
@@ -81,12 +87,10 @@ cd Plateforme-de-Pronostics
 ### 2. Start the Database
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
 ```
 
-This starts:
-- PostgreSQL on port 5432
-- Redis on port 6379
+This starts PostgreSQL on port 5432.
 
 ### 3. Setup Backend
 
@@ -136,17 +140,26 @@ Open http://localhost:5173 in your browser and login with:
 - **Password**: `Demo123!`
 - **Initial Bankroll**: 1000€
 
+An admin account is also created (can record race results and cancel races):
+
+- **Email**: `admin@hippodrome.com`
+- **Password**: `Admin123!`
+
 ## 📊 Features
 
 ### 1. Authentication System
+- Login and sign-up (new accounts start with 1000€)
 - JWT-based authentication
 - Secure password hashing with bcrypt
 - Protected routes
 
-### 2. Race Management
+### 2. Race Management & Betting
 - View upcoming and past races
-- Detailed race information with runners
+- Detailed race information with runners and the official result
 - Filter by status and hippodrome
+- Bet slip on the race page: pick the horses in the predictions table, choose the bet type and stake, see the estimated payout
+- **My Bets** page: history with status filters, cancel pending bets until the race starts
+- Admins can record the finishing order (or cancel the race) directly from the race page
 
 ### 3. AI Predictions
 - **Multi-criteria scoring algorithm:**
@@ -156,7 +169,8 @@ Open http://localhost:5173 in your browser and login with:
   - Conditions course (10%)
   - Valeur cote (10%)
 - Confidence levels (High/Medium/Low)
-- Value bet detection (Expected Value > 0)
+- Win probabilities: each runner's share of the race's total score
+- Value bet detection: expected profit (probability × odds − 1) of at least 10%
 - Top 5 recommendations per race
 
 ### 4. Betting Strategies
@@ -169,9 +183,28 @@ Open http://localhost:5173 in your browser and login with:
 - **FIBONACCI**: Fibonacci progression
 - **DUTCHING**: Distribute stakes across multiple horses
 - **FIXED_PERCENTAGE**: Fixed % of bankroll
-- **CUSTOM**: Custom strategy rules
+- **CUSTOM**: Custom strategy rules (saved, not executed)
 
-### 5. Bankroll Management
+#### Backtesting
+- Replay a strategy on finished races over a chosen period with a virtual bankroll (`POST /api/strategies/:id/backtest`)
+- Reports bets, win rate, ROI, net profit, max drawdown, the bankroll curve and the last simulated bets; stops when the bankroll can no longer cover the stakes
+- Runs are stored in the `simulations` table (`GET /api/strategies/:id/simulations`)
+- Simplified model: win bets at fixed odds, predictions computed with today's horse statistics
+
+#### Automatic execution
+- Every minute, each **active** strategy places its win bets on scheduled races starting within the next hour, through the same validated path as manual bets
+- At most one set of bets per strategy and race; progressions (Martingale, Fibonacci) resume from the strategy's settled bets
+
+### 5. Bet Settlement
+- Bets are settled when an admin records a race's results (`POST /api/races/:id/results`)
+- A background job also settles, at startup and every minute, any finished race that still has pending bets (e.g. results imported directly into the database)
+- Fixed odds: the odds are snapshotted when the bet is placed, and a winning bet pays `stake × odds` (`potential_payout`)
+- **Simple** wins if the horse finishes 1st; **Couplé / Trio / Quarté / Quinté** win if the selections are exactly the first 2 / 3 / 4 / 5 finishers, in any order
+- Disqualified runners are ignored when ranking
+- Bets on a cancelled race are refunded
+- Strategy statistics (bets, win rate, ROI, average odds) are recomputed from settled bets
+
+### 6. Bankroll Management
 - Real-time bankroll tracking
 - Transaction history
 - Deposit/Withdrawal system
@@ -181,7 +214,7 @@ Open http://localhost:5173 in your browser and login with:
   - Net profit/loss
   - Exposure monitoring
 
-### 6. Dashboard & Analytics
+### 7. Dashboard & Analytics
 - Overview of key metrics
 - Upcoming races recommendations
 - Performance charts
@@ -215,6 +248,8 @@ Open http://localhost:5173 in your browser and login with:
 - `GET /api/races/:id` - Get race details
 - `GET /api/races/upcoming` - Get upcoming races
 - `GET /api/races/today` - Get today's races
+- `POST /api/races/:id/results` - *(admin)* Record the official result, mark the race finished and settle its bets
+- `POST /api/races/:id/cancel` - *(admin)* Cancel a race and refund its pending bets
 
 ### Predictions
 - `GET /api/predictions/race/:raceId` - Get race predictions
@@ -233,6 +268,8 @@ Open http://localhost:5173 in your browser and login with:
 - `POST /api/strategies` - Create strategy
 - `PUT /api/strategies/:id` - Update strategy
 - `DELETE /api/strategies/:id` - Delete strategy
+- `POST /api/strategies/:id/backtest` - Backtest on past races (`{ from, to, initial_bankroll }`, all optional)
+- `GET /api/strategies/:id/simulations` - Latest backtests of a strategy
 
 ### Bets
 - `GET /api/bets` - List user bets
@@ -250,9 +287,10 @@ The database seeder creates:
 - **100 horses** with realistic stats
 - **50 jockeys** with career records
 - **30 trainers** with stable information
-- **~500 historical races** (6 months of data)
+- **~600 historical races** (6 months of data): odds carry a realistic ~18% margin and the finishing order is drawn at random, weighted by the odds
 - **~50 upcoming races** (next 7 days)
 - **1 demo user** with initial bankroll
+- **1 admin user**
 - **2 demo strategies** (Favorite & Value Betting)
 
 ## 🔒 Security Features
@@ -260,16 +298,20 @@ The database seeder creates:
 - Password hashing with bcrypt
 - JWT token authentication
 - Protected API routes
-- Input validation on all endpoints
+- Input validation on all write endpoints
 - SQL injection prevention (parameterized queries)
+- Row locks on bankroll operations (no double spending, no double refunds)
 - CORS configuration
-- Rate limiting ready (implementation pending)
+- Security headers (helmet) and 100 kB request body limit
+- Rate limiting on login and registration (`AUTH_RATE_LIMIT_MAX` per IP per 15 minutes)
+- In production the API refuses to start without a strong `JWT_SECRET` (32+ characters), and hides internal error messages
+- The seed script refuses to run in production unless `ALLOW_DESTRUCTIVE_SEED=true` (it deletes all data)
 
 ## 🚧 Future Enhancements
 
 ### Backend
-- [ ] Strategy execution engine (auto-betting)
-- [ ] Simulation/backtesting service
+- [x] Strategy execution engine (auto-betting)
+- [x] Simulation/backtesting service
 - [ ] CSV import for race data
 - [ ] Real-time odds updates
 - [ ] WebSocket for live race updates
@@ -284,7 +326,7 @@ The database seeder creates:
 - [ ] Mobile-responsive improvements
 - [ ] Dark mode
 - [ ] Strategy builder UI
-- [ ] Simulation interface
+- [x] Simulation interface
 - [ ] Export data to CSV/PDF
 
 ### Features
@@ -304,6 +346,24 @@ cd backend
 npm run migrate
 ```
 
+### Running Tests
+
+```bash
+cd backend
+npm run typecheck          # sources and tests
+npm test                   # unit tests (no database needed)
+
+# Integration tests run against a dedicated database (default: horse_racing_test,
+# override with TEST_DB_DATABASE). They wipe it, and refuse any database whose name
+# does not contain "test".
+createdb -h localhost -U postgres horse_racing_test
+npm run test:integration
+```
+
+Frontend: `cd frontend && npm run lint && npm run build`.
+
+CI (`.github/workflows/ci.yml`) runs all of this on every pull request, plus the Docker image builds.
+
 ### Re-seeding Database
 
 ```bash
@@ -317,15 +377,30 @@ Backend:
 ```bash
 cd backend
 npm run build
-npm start
+NODE_ENV=production JWT_SECRET=<32+ random chars> npm run migrate:prod
+NODE_ENV=production JWT_SECRET=<32+ random chars> npm start
 ```
 
 Frontend:
 ```bash
 cd frontend
-npm run build
-# Serve the 'dist' folder with your preferred static server
+VITE_API_URL=https://api.example.com/api npm run build
+# Serve the 'dist' folder with your preferred static server (SPA fallback to index.html)
 ```
+
+### Running the Full Stack with Docker
+
+```bash
+export JWT_SECRET=$(openssl rand -hex 32)
+docker compose up -d --build
+# Optional demo data (deletes everything in the database):
+docker compose exec -e ALLOW_DESTRUCTIVE_SEED=true backend node build/database/seed.js
+```
+
+- Frontend: http://localhost:8080 — API: http://localhost:3333
+- The backend applies the migration at startup and refuses to start without `JWT_SECRET`
+- `VITE_API_URL` (build argument) and `CORS_ORIGIN` must match the public URLs when deploying elsewhere
+- Behind a reverse proxy, set `TRUST_PROXY=1` so rate limiting sees the real client IPs
 
 ## 🐛 Troubleshooting
 
@@ -345,7 +420,7 @@ npm run build
 - Try dropping and recreating the database:
   ```bash
   docker compose down -v
-  docker compose up -d
+  docker compose up -d postgres
   npm run migrate
   npm run seed
   ```

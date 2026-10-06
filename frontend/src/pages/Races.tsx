@@ -1,18 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { racesAPI } from '../lib/api';
+import type { RaceSummary } from '../lib/types';
 
 export default function Races() {
-  const [races, setRaces] = useState([]);
+  const [races, setRaces] = useState<RaceSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    fetchRaces();
-  }, [filter]);
-
-  const fetchRaces = async () => {
-    setLoading(true);
+  const fetchRaces = useCallback(async () => {
     try {
       const params = filter !== 'all' ? { status: filter } : {};
       const response = await racesAPI.getRaces(params);
@@ -22,6 +18,15 @@ export default function Races() {
     } finally {
       setLoading(false);
     }
+  }, [filter]);
+
+  useEffect(() => {
+    fetchRaces();
+  }, [fetchRaces]);
+
+  const changeFilter = (newFilter: string) => {
+    setLoading(true);
+    setFilter(newFilter);
   };
 
   return (
@@ -30,7 +35,7 @@ export default function Races() {
         <h1 className="text-3xl font-bold text-gray-900">Races</h1>
         <div className="flex gap-2">
           <button
-            onClick={() => setFilter('all')}
+            onClick={() => changeFilter('all')}
             className={`px-4 py-2 rounded-md text-sm font-medium ${
               filter === 'all'
                 ? 'bg-blue-600 text-white'
@@ -40,7 +45,7 @@ export default function Races() {
             All
           </button>
           <button
-            onClick={() => setFilter('scheduled')}
+            onClick={() => changeFilter('scheduled')}
             className={`px-4 py-2 rounded-md text-sm font-medium ${
               filter === 'scheduled'
                 ? 'bg-blue-600 text-white'
@@ -50,7 +55,7 @@ export default function Races() {
             Upcoming
           </button>
           <button
-            onClick={() => setFilter('finished')}
+            onClick={() => changeFilter('finished')}
             className={`px-4 py-2 rounded-md text-sm font-medium ${
               filter === 'finished'
                 ? 'bg-blue-600 text-white'
@@ -66,7 +71,7 @@ export default function Races() {
         <div className="text-center py-12">Loading races...</div>
       ) : (
         <div className="grid gap-4">
-          {races.map((race: any) => (
+          {races.map((race) => (
             <Link
               key={race.id}
               to={`/races/${race.id}`}

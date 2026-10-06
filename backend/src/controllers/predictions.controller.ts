@@ -1,43 +1,49 @@
 import { Request, Response } from 'express';
 import predictionService from '../services/prediction.service.js';
+import { parseId } from '../utils/validation.js';
+import { HttpError, sendError } from '../utils/http-error.js';
 
 export class PredictionsController {
   async getRacePredictions(req: Request, res: Response) {
-    try {
-      const { raceId } = req.params;
+    const raceId = parseId(req.params.raceId);
+    if (!raceId) return sendError(res, 400, 'Invalid race id');
 
-      const predictions = await predictionService.generateRacePredictions(parseInt(raceId));
+    try {
+      const predictions = await predictionService.generateRacePredictions(raceId);
 
       res.json({
-        race_id: parseInt(raceId),
+        race_id: raceId,
         predictions,
         generated_at: new Date().toISOString()
       });
     } catch (error) {
+      if (error instanceof HttpError) {
+        return sendError(res, error.status, error.message);
+      }
       console.error('Get predictions error:', error);
-      res.status(500).json({
-        error: { message: 'Failed to generate predictions', status: 500 }
-      });
+      sendError(res, 500, 'Failed to generate predictions');
     }
   }
 
   async getValueBets(req: Request, res: Response) {
-    try {
-      const { raceId } = req.params;
+    const raceId = parseId(req.params.raceId);
+    if (!raceId) return sendError(res, 400, 'Invalid race id');
 
-      const valueBets = await predictionService.getValueBets(parseInt(raceId));
+    try {
+      const valueBets = await predictionService.getValueBets(raceId);
 
       res.json({
-        race_id: parseInt(raceId),
+        race_id: raceId,
         value_bets: valueBets,
         count: valueBets.length,
         generated_at: new Date().toISOString()
       });
     } catch (error) {
+      if (error instanceof HttpError) {
+        return sendError(res, error.status, error.message);
+      }
       console.error('Get value bets error:', error);
-      res.status(500).json({
-        error: { message: 'Failed to get value bets', status: 500 }
-      });
+      sendError(res, 500, 'Failed to get value bets');
     }
   }
 }

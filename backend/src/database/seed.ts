@@ -1,7 +1,42 @@
 import pool from '../config/database.js';
 import bcrypt from 'bcryptjs';
 
+// Sum of implied probabilities (1/odds) of a race: 1.18 ≈ an 18% bookmaker margin, like PMU pools
+const ODDS_OVERROUND = 1.18;
+
+/** Random odds for a race (first 3 runners are favorites), scaled to a realistic margin */
+function generateRaceOdds(numRunners: number): number[] {
+  const rawOdds = Array.from({ length: numRunners }, (_, i) => {
+    const baseOdds = 2 + Math.random() * 18;
+    return i < 3 ? baseOdds * 0.5 : baseOdds; // Favorites have lower odds
+  });
+  const impliedTotal = rawOdds.reduce((sum, odds) => sum + 1 / odds, 0);
+  return rawOdds.map((odds) => Math.max(1.05, Math.round(((odds * impliedTotal) / ODDS_OVERROUND) * 100) / 100));
+}
+
+function drawFinishOrder<T extends { odds: number }>(runners: T[]): T[] {
+  const remaining = [...runners];
+  const order: T[] = [];
+  while (remaining.length > 0) {
+    const totalWeight = remaining.reduce((sum, runner) => sum + 1 / runner.odds, 0);
+    let pick = Math.random() * totalWeight;
+    let index = 0;
+    while (index < remaining.length - 1 && pick >= 1 / remaining[index].odds) {
+      pick -= 1 / remaining[index].odds;
+      index++;
+    }
+    order.push(remaining.splice(index, 1)[0]);
+  }
+  return order;
+}
+
 async function seed() {
+  // The seed wipes every table: never run it by accident against a production database
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DESTRUCTIVE_SEED !== 'true') {
+    console.error('❌ Refusing to seed in production: this deletes all data. Set ALLOW_DESTRUCTIVE_SEED=true to confirm.');
+    process.exit(1);
+  }
+
   console.log('🌱 Seeding database...');
 
   try {
@@ -24,6 +59,15 @@ async function seed() {
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [userId, 'DEPOSIT', 1000, 0, 1000, 'Initial deposit']
     );
+
+    // Admin user (can record race results and cancel races)
+    const adminPassword = await bcrypt.hash('Admin123!', 10);
+    await pool.query(
+      `INSERT INTO users (email, username, password, role, bankroll)
+       VALUES ($1, $2, $3, $4, $5)`,
+      ['admin@hippodrome.com', 'admin', adminPassword, 'admin', 0]
+    );
+    console.log('✅ Admin user created (email: admin@hippodrome.com, password: Admin123!)');
 
     // 2. Seed Hippodromes
     const hippodromes = [
@@ -180,13 +224,16 @@ async function seed() {
         const numRunners = 8 + Math.floor(Math.random() * 9);
         const selectedHorses = [...horses.rows].sort(() => Math.random() - 0.5).slice(0, numRunners);
 
+        const raceRunners: { id: number; odds: number }[] = [];
+
+        const raceOdds = generateRaceOdds(selectedHorses.length);
+
         for (let i = 0; i < selectedHorses.length; i++) {
           const horse = selectedHorses[i];
           const jockey = jockeys.rows[Math.floor(Math.random() * jockeys.rows.length)];
           const trainer = trainers.rows[Math.floor(Math.random() * trainers.rows.length)];
 
-          const baseOdds = 2 + Math.random() * 18;
-          const odds = i < 3 ? baseOdds * 0.5 : baseOdds; // Favorites have lower odds
+          const odds = raceOdds[i];
 
           const runnerResult = await pool.query(
             `INSERT INTO runners (race_id, horse_id, jockey_id, trainer_id, saddle_number, weight_carried, morning_odds, final_odds, prediction_score, confidence_level)
@@ -204,9 +251,15 @@ async function seed() {
               ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)]
             ]
           );
-          const runnerId = runnerResult.rows[0].id;
+          raceRunners.push({ id: runnerResult.rows[0].id, odds });
+        }
 
-          // Create result
+        // Draw the finishing order: each place is won with a probability proportional
+        // to 1/odds among the remaining runners, so favorites win more often but not always
+        const finishOrder = drawFinishOrder(raceRunners);
+
+        for (let i = 0; i < finishOrder.length; i++) {
+          const { id: runnerId, odds } = finishOrder[i];
           const position = i + 1;
           await pool.query(
             `INSERT INTO results (race_id, runner_id, finish_position, finish_time, lengths_behind, payout_win, payout_place)
@@ -265,13 +318,14 @@ async function seed() {
         const numRunners = 8 + Math.floor(Math.random() * 9);
         const selectedHorses = [...horses.rows].sort(() => Math.random() - 0.5).slice(0, numRunners);
 
+        const raceOdds = generateRaceOdds(selectedHorses.length);
+
         for (let i = 0; i < selectedHorses.length; i++) {
           const horse = selectedHorses[i];
           const jockey = jockeys.rows[Math.floor(Math.random() * jockeys.rows.length)];
           const trainer = trainers.rows[Math.floor(Math.random() * trainers.rows.length)];
 
-          const baseOdds = 2 + Math.random() * 18;
-          const odds = i < 3 ? baseOdds * 0.5 : baseOdds;
+          const odds = raceOdds[i];
 
           await pool.query(
             `INSERT INTO runners (race_id, horse_id, jockey_id, trainer_id, saddle_number, weight_carried, morning_odds, final_odds, prediction_score, confidence_level)
@@ -331,7 +385,8 @@ async function seed() {
     console.log('\n📝 Demo Credentials:');
     console.log('   Email: demo@hippodrome.com');
     console.log('   Password: Demo123!');
-    console.log('   Initial Bankroll: 1000€\n');
+    console.log('   Initial Bankroll: 1000€');
+    console.log('   Admin: admin@hippodrome.com / Admin123!\n');
 
     process.exit(0);
   } catch (error) {
@@ -340,16 +395,4 @@ async function seed() {
   }
 }
 
-// Install bcryptjs if needed
-try {
-  await seed();
-} catch (error) {
-  if (error.code === 'ERR_MODULE_NOT_FOUND' && error.message.includes('bcryptjs')) {
-    console.log('Installing bcryptjs...');
-    const { execSync } = await import('child_process');
-    execSync('npm install bcryptjs @types/bcryptjs', { stdio: 'inherit' });
-    console.log('Please run the seed script again');
-    process.exit(0);
-  }
-  throw error;
-}
+seed();

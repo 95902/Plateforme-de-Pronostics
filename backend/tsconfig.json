@@ -5,23 +5,15 @@
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
     "outDir": "./build",
-    "rootDir": "./",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["@adonisjs/core", "node"],
-    "paths": {
-      "#controllers/*": ["./app/controllers/*"],
-      "#models/*": ["./app/models/*"],
-      "#services/*": ["./app/services/*"],
-      "#validators/*": ["./app/validators/*"],
-      "#utils/*": ["./app/utils/*"],
-      "#config/*": ["./config/*"]
-    }
+    "types": ["node"]
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules", "build"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "build", "src/**/*.test.ts"]
 }

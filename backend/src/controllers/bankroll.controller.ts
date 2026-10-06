@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import pool from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { parseAmount } from '../utils/validation.js';
 
 export class BankrollController {
   async getBankroll(req: AuthRequest, res: Response) {
@@ -53,9 +54,9 @@ export class BankrollController {
         return res.status(401).json({ error: { message: 'Unauthorized', status: 401 } });
       }
 
-      const { amount } = req.body;
+      const amount = parseAmount(req.body.amount);
 
-      if (!amount || amount <= 0) {
+      if (!amount) {
         return res.status(400).json({ error: { message: 'Invalid amount', status: 400 } });
       }
 
@@ -63,13 +64,13 @@ export class BankrollController {
       try {
         await client.query('BEGIN');
 
-        // Get current bankroll
+        // Lock the user row so concurrent requests see a consistent bankroll
         const userResult = await client.query(
-          'SELECT bankroll FROM users WHERE id = $1',
+          'SELECT bankroll FROM users WHERE id = $1 FOR UPDATE',
           [req.user.id]
         );
-        const currentBankroll = parseFloat(userResult.rows[0].bankroll);
-        const newBankroll = currentBankroll + parseFloat(amount);
+        const currentBankroll: number = userResult.rows[0].bankroll;
+        const newBankroll = Math.round((currentBankroll + amount) * 100) / 100;
 
         // Update bankroll
         await client.query(
@@ -108,9 +109,9 @@ export class BankrollController {
         return res.status(401).json({ error: { message: 'Unauthorized', status: 401 } });
       }
 
-      const { amount } = req.body;
+      const amount = parseAmount(req.body.amount);
 
-      if (!amount || amount <= 0) {
+      if (!amount) {
         return res.status(400).json({ error: { message: 'Invalid amount', status: 400 } });
       }
 
@@ -118,19 +119,19 @@ export class BankrollController {
       try {
         await client.query('BEGIN');
 
-        // Get current bankroll
+        // Lock the user row so concurrent requests see a consistent bankroll
         const userResult = await client.query(
-          'SELECT bankroll FROM users WHERE id = $1',
+          'SELECT bankroll FROM users WHERE id = $1 FOR UPDATE',
           [req.user.id]
         );
-        const currentBankroll = parseFloat(userResult.rows[0].bankroll);
+        const currentBankroll: number = userResult.rows[0].bankroll;
 
-        if (currentBankroll < parseFloat(amount)) {
+        if (currentBankroll < amount) {
           await client.query('ROLLBACK');
           return res.status(400).json({ error: { message: 'Insufficient funds', status: 400 } });
         }
 
-        const newBankroll = currentBankroll - parseFloat(amount);
+        const newBankroll = Math.round((currentBankroll - amount) * 100) / 100;
 
         // Update bankroll
         await client.query(

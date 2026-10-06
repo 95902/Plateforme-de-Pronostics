@@ -1,6 +1,11 @@
 import { Response } from 'express';
 import pool from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
+import betService from '../services/bet.service.js';
+import { parseId } from '../utils/validation.js';
+import { HttpError, sendError } from '../utils/http-error.js';
+
+const badRequest = (res: Response, message: string) => sendError(res, 400, message);
 
 export class BetsController {
   async getBets(req: AuthRequest, res: Response) {
@@ -12,9 +17,12 @@ export class BetsController {
       const { status, limit = '20', offset = '0' } = req.query;
 
       let query = `
-        SELECT b.*, r.name as race_name, r.date as race_date
+        SELECT b.*, r.name as race_name, r.date as race_date, r.time as race_time,
+               r.status as race_status, h.name as hippodrome_name, s.name as strategy_name
         FROM bets b
         JOIN races r ON b.race_id = r.id
+        JOIN hippodromes h ON r.hippodrome_id = h.id
+        LEFT JOIN strategies s ON b.strategy_id = s.id
         WHERE b.user_id = $1
       `;
       const params: any[] = [req.user.id];
@@ -38,144 +46,96 @@ export class BetsController {
   }
 
   async placeBet(req: AuthRequest, res: Response) {
+    if (!req.user) {
+      return res.status(401).json({ error: { message: 'Unauthorized', status: 401 } });
+    }
+
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: { message: 'Unauthorized', status: 401 } });
-      }
-
-      const { race_id, bet_type, selections, stake, strategy_id } = req.body;
-
-      if (!race_id || !bet_type || !selections || !stake || stake <= 0) {
-        return res.status(400).json({ error: { message: 'Invalid bet data', status: 400 } });
-      }
-
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-
-        // Check bankroll
-        const userResult = await client.query(
-          'SELECT bankroll FROM users WHERE id = $1',
-          [req.user.id]
-        );
-        const currentBankroll = parseFloat(userResult.rows[0].bankroll);
-
-        if (currentBankroll < stake) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: { message: 'Insufficient funds', status: 400 } });
-        }
-
-        // Calculate potential payout (simplified)
-        const totalOdds = selections.reduce((acc: number, sel: any) => acc * sel.odds, 1);
-        const potential_payout = stake * totalOdds;
-
-        // Create bet
-        const betResult = await client.query(
-          `INSERT INTO bets (user_id, race_id, strategy_id, bet_type, selections, stake, potential_payout, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-          [req.user.id, race_id, strategy_id || null, bet_type, JSON.stringify(selections), stake, potential_payout, 'pending']
-        );
-
-        // Update bankroll
-        const newBankroll = currentBankroll - stake;
-        await client.query(
-          'UPDATE users SET bankroll = $1 WHERE id = $2',
-          [newBankroll, req.user.id]
-        );
-
-        // Create transaction
-        await client.query(
-          `INSERT INTO transactions (user_id, type, amount, bankroll_before, bankroll_after, bet_id, description)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [req.user.id, 'BET_PLACED', stake, currentBankroll, newBankroll, betResult.rows[0].id, `Bet placed on race ${race_id}`]
-        );
-
-        await client.query('COMMIT');
-
-        res.status(201).json({
-          bet: betResult.rows[0],
-          new_bankroll: newBankroll
-        });
-      } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        client.release();
-      }
+      const result = await betService.placeBet(req.user.id, req.body);
+      res.status(201).json(result);
     } catch (error) {
+      if (error instanceof HttpError) {
+        return sendError(res, error.status, error.message);
+      }
       console.error('Place bet error:', error);
       res.status(500).json({ error: { message: 'Failed to place bet', status: 500 } });
     }
   }
 
   async cancelBet(req: AuthRequest, res: Response) {
+    if (!req.user) {
+      return res.status(401).json({ error: { message: 'Unauthorized', status: 401 } });
+    }
+
+    const betId = parseId(req.params.id);
+    if (!betId) return badRequest(res, 'Invalid bet id');
+
+    const client = await pool.connect();
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: { message: 'Unauthorized', status: 401 } });
+      await client.query('BEGIN');
+
+      // Lock the race, then the bet (same order as settlement) so the race status
+      // cannot change meanwhile and the same bet cannot be refunded twice
+      const raceResult = await client.query(
+        `SELECT r.status FROM races r
+         WHERE r.id = (SELECT race_id FROM bets WHERE id = $1 AND user_id = $2)
+         FOR SHARE`,
+        [betId, req.user.id]
+      );
+
+      const betResult = await client.query(
+        'SELECT * FROM bets WHERE id = $1 AND user_id = $2 FOR UPDATE',
+        [betId, req.user.id]
+      );
+
+      if (raceResult.rows.length === 0 || betResult.rows.length === 0) {
+        throw new HttpError(404, 'Bet not found');
       }
 
-      const { id } = req.params;
+      const bet = betResult.rows[0];
 
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-
-        // Get bet
-        const betResult = await client.query(
-          'SELECT * FROM bets WHERE id = $1 AND user_id = $2',
-          [id, req.user.id]
-        );
-
-        if (betResult.rows.length === 0) {
-          await client.query('ROLLBACK');
-          return res.status(404).json({ error: { message: 'Bet not found', status: 404 } });
-        }
-
-        const bet = betResult.rows[0];
-
-        if (bet.status !== 'pending') {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ error: { message: 'Can only cancel pending bets', status: 400 } });
-        }
-
-        // Update bet status
-        await client.query(
-          'UPDATE bets SET status = $1, settled_at = CURRENT_TIMESTAMP WHERE id = $2',
-          ['cancelled', id]
-        );
-
-        // Refund stake
-        const userResult = await client.query(
-          'SELECT bankroll FROM users WHERE id = $1',
-          [req.user.id]
-        );
-        const currentBankroll = parseFloat(userResult.rows[0].bankroll);
-        const newBankroll = currentBankroll + parseFloat(bet.stake);
-
-        await client.query(
-          'UPDATE users SET bankroll = $1 WHERE id = $2',
-          [newBankroll, req.user.id]
-        );
-
-        // Create refund transaction
-        await client.query(
-          `INSERT INTO transactions (user_id, type, amount, bankroll_before, bankroll_after, bet_id, description)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [req.user.id, 'DEPOSIT', bet.stake, currentBankroll, newBankroll, id, 'Bet cancelled - refund']
-        );
-
-        await client.query('COMMIT');
-
-        res.json({ message: 'Bet cancelled successfully', new_bankroll: newBankroll });
-      } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        client.release();
+      if (bet.status !== 'pending') {
+        throw new HttpError(400, 'Can only cancel pending bets');
       }
+      if (raceResult.rows[0].status !== 'scheduled') {
+        throw new HttpError(400, 'Cannot cancel a bet once the race has started');
+      }
+
+      await client.query(
+        'UPDATE bets SET status = $1, settled_at = CURRENT_TIMESTAMP WHERE id = $2',
+        ['cancelled', betId]
+      );
+
+      const userResult = await client.query(
+        'SELECT bankroll FROM users WHERE id = $1 FOR UPDATE',
+        [req.user.id]
+      );
+      const currentBankroll: number = userResult.rows[0].bankroll;
+      const newBankroll = Math.round((currentBankroll + bet.stake) * 100) / 100;
+
+      await client.query(
+        'UPDATE users SET bankroll = $1 WHERE id = $2',
+        [newBankroll, req.user.id]
+      );
+
+      await client.query(
+        `INSERT INTO transactions (user_id, type, amount, bankroll_before, bankroll_after, bet_id, description)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [req.user.id, 'DEPOSIT', bet.stake, currentBankroll, newBankroll, betId, 'Bet cancelled - refund']
+      );
+
+      await client.query('COMMIT');
+
+      res.json({ message: 'Bet cancelled successfully', new_bankroll: newBankroll });
     } catch (error) {
+      await client.query('ROLLBACK');
+      if (error instanceof HttpError) {
+        return sendError(res, error.status, error.message);
+      }
       console.error('Cancel bet error:', error);
       res.status(500).json({ error: { message: 'Failed to cancel bet', status: 500 } });
+    } finally {
+      client.release();
     }
   }
 }

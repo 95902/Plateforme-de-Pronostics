@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { JWT_SECRET } from '../config/env.js';
+import pool from '../config/database.js';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -24,9 +26,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
     }
 
     const token = authHeader.substring(7);
-    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
-
-    const decoded = jwt.verify(token, jwtSecret) as any;
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
 
     req.user = {
       id: decoded.id,
@@ -43,5 +43,28 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
         status: 401
       }
     });
+  }
+};
+
+/**
+ * Must run after authMiddleware. The role is read from the database so that a
+ * demoted user cannot keep using an older token that still says "admin".
+ */
+export const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const result = await pool.query('SELECT role FROM users WHERE id = $1', [req.user?.id]);
+
+    if (result.rows[0]?.role !== 'admin') {
+      return res.status(403).json({
+        error: {
+          message: 'Admin access required',
+          status: 403
+        }
+      });
+    }
+
+    next();
+  } catch (error) {
+    next(error);
   }
 };

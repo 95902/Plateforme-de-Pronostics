@@ -1,9 +1,30 @@
-import { useEffect, useState } from 'react';
-import { strategiesAPI } from '../lib/api';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { strategiesAPI, getErrorMessage } from '../lib/api';
+import type { Strategy, StrategyType } from '../lib/types';
+
+/** Suggested parameters for each strategy type (editable in the form) */
+const DEFAULT_PARAMETERS: Record<StrategyType, Record<string, number>> = {
+  FAVORITE: { baseStake: 20, maxOdds: 4 },
+  VALUE_BETTING: { minEV: 5, percentageBankroll: 2, minOdds: 3, maxOdds: 15 },
+  KELLY_CRITERION: { fraction: 0.5, maxStakePercent: 5 },
+  MARTINGALE: { baseStake: 5, maxStake: 160, maxConsecutiveLosses: 5 },
+  FIBONACCI: { baseStake: 5, maxStep: 8 },
+  DUTCHING: { horses: 3, totalStake: 20 },
+  FIXED_PERCENTAGE: { percentageBankroll: 2 },
+  CUSTOM: {},
+};
+
+const STRATEGY_TYPES = Object.keys(DEFAULT_PARAMETERS) as StrategyType[];
+
+// Loaded on demand: it pulls in the charting library
+const BacktestPanel = lazy(() => import('../components/BacktestPanel'));
 
 export default function Strategies() {
-  const [strategies, setStrategies] = useState([]);
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [backtestOpen, setBacktestOpen] = useState<number | null>(null);
 
   useEffect(() => {
     fetchStrategies();
@@ -20,6 +41,27 @@ export default function Strategies() {
     }
   };
 
+  const toggleActive = async (strategy: Strategy) => {
+    setError('');
+    try {
+      await strategiesAPI.updateStrategy(strategy.id, { is_active: !strategy.is_active });
+      fetchStrategies();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to update strategy'));
+    }
+  };
+
+  const deleteStrategy = async (strategy: Strategy) => {
+    if (!window.confirm(`Delete strategy "${strategy.name}"?`)) return;
+    setError('');
+    try {
+      await strategiesAPI.deleteStrategy(strategy.id);
+      fetchStrategies();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to delete strategy'));
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-12">Loading strategies...</div>;
   }
@@ -33,7 +75,26 @@ export default function Strategies() {
             Manage and test your betting strategies
           </p>
         </div>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          {showForm ? 'Close' : 'New strategy'}
+        </button>
       </div>
+
+      {showForm && (
+        <StrategyForm
+          onCreated={() => {
+            setShowForm(false);
+            fetchStrategies();
+          }}
+        />
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">{error}</div>
+      )}
 
       {/* Strategy Info */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
@@ -59,7 +120,13 @@ export default function Strategies() {
           <div>
             <strong>DUTCHING:</strong> Spread bet across multiple horses
           </div>
+          <div>
+            <strong>FIBONACCI:</strong> Fibonacci stake progression after losses
+          </div>
         </div>
+        <p className="mt-4 text-sm text-blue-900">
+          🤖 Active strategies place their bets automatically on races starting within the next hour.
+        </p>
       </div>
 
       {/* Strategies List */}
@@ -67,12 +134,12 @@ export default function Strategies() {
         <div className="bg-white rounded-lg shadow p-12 text-center">
           <p className="text-gray-500">No strategies configured yet</p>
           <p className="text-sm text-gray-400 mt-2">
-            Create a strategy to start automated betting
+            Create a strategy, backtest it on past races, then activate it
           </p>
         </div>
       ) : (
         <div className="grid gap-6">
-          {strategies.map((strategy: any) => (
+          {strategies.map((strategy) => (
             <div key={strategy.id} className="bg-white rounded-lg shadow p-6">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
@@ -129,6 +196,28 @@ export default function Strategies() {
                     </div>
                   </div>
                 </div>
+                <div className="flex gap-2 ml-4">
+                  {strategy.type !== 'CUSTOM' && (
+                    <button
+                      onClick={() => setBacktestOpen(backtestOpen === strategy.id ? null : strategy.id)}
+                      className="px-3 py-1 text-sm font-medium rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    >
+                      {backtestOpen === strategy.id ? 'Hide backtest' : 'Backtest'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => toggleActive(strategy)}
+                    className="px-3 py-1 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  >
+                    {strategy.is_active ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button
+                    onClick={() => deleteStrategy(strategy)}
+                    className="px-3 py-1 text-sm font-medium rounded-md text-red-600 hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
 
               {/* Performance Stats */}
@@ -137,13 +226,13 @@ export default function Strategies() {
                   <div>
                     <div className="text-xs text-gray-500">Total Staked</div>
                     <div className="text-lg font-bold text-gray-900">
-                      {parseFloat(strategy.total_staked).toFixed(2)}€
+                      {strategy.total_staked.toFixed(2)}€
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500">Total Returned</div>
                     <div className="text-lg font-bold text-gray-900">
-                      {parseFloat(strategy.total_returned).toFixed(2)}€
+                      {strategy.total_returned.toFixed(2)}€
                     </div>
                   </div>
                   <div>
@@ -154,7 +243,7 @@ export default function Strategies() {
                         : 'text-red-600'
                     }`}>
                       {(strategy.total_returned - strategy.total_staked) >= 0 ? '+' : ''}
-                      {(parseFloat(strategy.total_returned) - parseFloat(strategy.total_staked)).toFixed(2)}€
+                      {(strategy.total_returned - strategy.total_staked).toFixed(2)}€
                     </div>
                   </div>
                   <div>
@@ -165,10 +254,129 @@ export default function Strategies() {
                   </div>
                 </div>
               )}
+
+              {backtestOpen === strategy.id && (
+                <Suspense fallback={<div className="mt-6 text-sm text-gray-500">Loading backtest...</div>}>
+                  <BacktestPanel strategy={strategy} />
+                </Suspense>
+              )}
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function StrategyForm({ onCreated }: { onCreated: () => void }) {
+  const [name, setName] = useState('');
+  const [type, setType] = useState<StrategyType>('FAVORITE');
+  const [description, setDescription] = useState('');
+  const [parameters, setParameters] = useState(JSON.stringify(DEFAULT_PARAMETERS.FAVORITE, null, 2));
+  const [isActive, setIsActive] = useState(true);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const changeType = (newType: StrategyType) => {
+    setType(newType);
+    setParameters(JSON.stringify(DEFAULT_PARAMETERS[newType], null, 2));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    let parsedParameters: unknown;
+    try {
+      parsedParameters = JSON.parse(parameters);
+    } catch {
+      setError('Parameters must be valid JSON');
+      return;
+    }
+    if (typeof parsedParameters !== 'object' || parsedParameters === null || Array.isArray(parsedParameters)) {
+      setError('Parameters must be a JSON object');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await strategiesAPI.createStrategy({ name, type, description, parameters: parsedParameters, is_active: isActive });
+      onCreated();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to create strategy'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <h3 className="text-lg font-semibold mb-4">New Strategy</h3>
+      <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label htmlFor="strategy-name" className="block text-sm font-medium text-gray-700">Name</label>
+          <input
+            id="strategy-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 border rounded-md"
+            maxLength={255}
+            required
+          />
+        </div>
+        <div>
+          <label htmlFor="strategy-type" className="block text-sm font-medium text-gray-700">Type</label>
+          <select
+            id="strategy-type"
+            value={type}
+            onChange={(e) => changeType(e.target.value as StrategyType)}
+            className="mt-1 block w-full px-3 py-2 border rounded-md bg-white"
+          >
+            {STRATEGY_TYPES.map((strategyType) => (
+              <option key={strategyType} value={strategyType}>{strategyType}</option>
+            ))}
+          </select>
+        </div>
+        <div className="md:col-span-2">
+          <label htmlFor="strategy-description" className="block text-sm font-medium text-gray-700">Description</label>
+          <input
+            id="strategy-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 border rounded-md"
+          />
+        </div>
+        <div className="md:col-span-2">
+          <label htmlFor="strategy-parameters" className="block text-sm font-medium text-gray-700">
+            Parameters (JSON)
+          </label>
+          <textarea
+            id="strategy-parameters"
+            value={parameters}
+            onChange={(e) => setParameters(e.target.value)}
+            rows={6}
+            className="mt-1 block w-full px-3 py-2 border rounded-md font-mono text-sm"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Active strategies bet automatically (win bets) on races starting within the next hour. CUSTOM strategies are
+            saved but not executed.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+          Active
+        </label>
+        <div className="md:col-span-2 flex items-center gap-4">
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Create strategy'}
+          </button>
+          {error && <span className="text-red-600 text-sm">{error}</span>}
+        </div>
+      </form>
     </div>
   );
 }
