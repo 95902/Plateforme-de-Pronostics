@@ -5,7 +5,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      # Development default; set DB_PASSWORD for any shared deployment
+      POSTGRES_PASSWORD: &db_password ${DB_PASSWORD:-postgres}
       POSTGRES_DB: horse_racing_predictor
     ports:
       - "5432:5432"
@@ -30,7 +31,7 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: postgres
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_PASSWORD: *db_password
       DB_DATABASE: horse_racing_predictor
       # Required: the API refuses to start in production without a 32+ character secret
       JWT_SECRET: ${JWT_SECRET:-}

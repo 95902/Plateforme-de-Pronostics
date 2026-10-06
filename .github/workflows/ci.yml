@@ -20,7 +20,8 @@ jobs:
         image: postgres:15-alpine
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          # Throwaway database reachable only from this job: no password needed
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: horse_racing_test
         ports:
           - 5432:5432
@@ -33,7 +34,6 @@ jobs:
       DB_HOST: localhost
       DB_PORT: 5432
       DB_USER: postgres
-      DB_PASSWORD: postgres
       TEST_DB_DATABASE: horse_racing_test
     steps:
       - uses: actions/checkout@v4

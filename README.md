@@ -143,7 +143,7 @@ Open http://localhost:5173 in your browser and login with:
 An admin account is also created (can record race results and cancel races):
 
 - **Email**: `admin@hippodrome.com`
-- **Password**: `Admin123!`
+- **Password**: printed at the end of `npm run seed`. It is random unless you set `SEED_ADMIN_PASSWORD` (8+ characters), e.g. `SEED_ADMIN_PASSWORD='choose-one' npm run seed`
 
 ## 📊 Features
 
