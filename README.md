@@ -87,6 +87,10 @@ cd Plateforme-de-Pronostics
 ### 2. Start the Database
 
 ```bash
+# Choose a database password (docker compose refuses to start without one)
+cp .env.example .env
+sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$(openssl rand -hex 16)/" .env   # or edit .env by hand
+
 docker compose up -d postgres
 ```
 
@@ -100,7 +104,7 @@ cd backend
 # Install dependencies
 npm install
 
-# Copy environment file
+# Copy environment file, then set DB_PASSWORD to the value from the root .env
 cp .env.example .env
 
 # Run database migrations
@@ -391,7 +395,7 @@ VITE_API_URL=https://api.example.com/api npm run build
 ### Running the Full Stack with Docker
 
 ```bash
-export JWT_SECRET=$(openssl rand -hex 32)
+# In the root .env (see .env.example): DB_PASSWORD and JWT_SECRET=$(openssl rand -hex 32)
 docker compose up -d --build
 # Optional demo data (deletes everything in the database):
 docker compose exec -e ALLOW_DESTRUCTIVE_SEED=true backend node build/database/seed.js
