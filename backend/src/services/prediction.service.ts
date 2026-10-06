@@ -1,6 +1,7 @@
 import pool from '../config/database.js';
 import { Prediction } from '../types/index.js';
 import { analyzeRace } from './strategy-engine.js';
+import { HttpError } from '../utils/http-error.js';
 
 /** A runner is a value bet when its expected profit is at least 10% of the stake */
 const VALUE_BET_MIN_EDGE = 0.1;
@@ -68,7 +69,7 @@ export class PredictionService {
       );
 
       if (raceResult.rows.length === 0) {
-        throw new Error('Race not found');
+        throw new HttpError(404, 'Race not found');
       }
 
       const race = raceResult.rows[0];
@@ -127,19 +128,11 @@ export class PredictionService {
       // Sort by prediction score descending
       predictions.sort((a, b) => b.prediction_score - a.prediction_score);
 
-      // Update database with prediction scores
-      for (const pred of predictions) {
-        await pool.query(
-          `UPDATE runners
-           SET prediction_score = $1, confidence_level = $2
-           WHERE id = $3`,
-          [pred.prediction_score, pred.confidence_level, pred.runner_id]
-        );
-      }
-
       return predictions;
     } catch (error) {
-      console.error('Generate predictions error:', error);
+      if (!(error instanceof HttpError)) {
+        console.error('Generate predictions error:', error);
+      }
       throw error;
     }
   }

@@ -19,6 +19,8 @@ This platform provides:
 - **PostgreSQL** for database
 - **JWT** for authentication
 - **bcryptjs** for password hashing
+- **helmet** (security headers) & **express-rate-limit** (login/register throttling)
+- **node:test** for unit and integration tests
 
 ### Frontend
 - **React** with **TypeScript**
@@ -29,8 +31,8 @@ This platform provides:
 - **Recharts** for data visualization
 
 ### Infrastructure
-- **Docker** & **Docker Compose** for database
-- **Redis** for caching (optional)
+- **Docker** & **Docker Compose** (PostgreSQL for development, or the full stack)
+- **GitHub Actions** CI
 
 ## 📦 Project Structure
 
@@ -42,12 +44,14 @@ Plateforme-de-Pronostics/
 │   │   ├── controllers/     # Route controllers
 │   │   ├── database/        # Migrations & seeders
 │   │   ├── middleware/      # Auth & other middleware
-│   │   ├── models/          # (Future) ORM models
 │   │   ├── routes/          # API routes
-│   │   ├── services/        # Business logic
+│   │   ├── services/        # Business logic (bets, settlement, strategies, predictions)
 │   │   ├── types/           # TypeScript interfaces
-│   │   ├── utils/           # Utility functions
-│   │   └── server.ts        # Main server file
+│   │   ├── utils/           # Validation & HTTP error helpers
+│   │   ├── app.ts           # Express app (routes & middleware)
+│   │   └── server.ts        # Starts the server and background jobs
+│   ├── test/                # Integration tests (need PostgreSQL)
+│   ├── Dockerfile
 │   ├── .env.example
 │   └── package.json
 ├── frontend/
@@ -57,9 +61,11 @@ Plateforme-de-Pronostics/
 │   │   ├── pages/           # Page components
 │   │   ├── App.tsx          # Main app component
 │   │   └── main.tsx         # Entry point
+│   ├── Dockerfile           # Static build served by nginx
 │   ├── .env.example
 │   └── package.json
-├── docker-compose.yml       # Docker services
+├── .github/workflows/ci.yml # CI: typecheck, lint, tests, build, Docker images
+├── docker-compose.yml       # PostgreSQL, backend, frontend
 └── README.md
 ```
 
@@ -81,12 +87,10 @@ cd Plateforme-de-Pronostics
 ### 2. Start the Database
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
 ```
 
-This starts:
-- PostgreSQL on port 5432
-- Redis on port 6379
+This starts PostgreSQL on port 5432.
 
 ### 3. Setup Backend
 
@@ -294,10 +298,14 @@ The database seeder creates:
 - Password hashing with bcrypt
 - JWT token authentication
 - Protected API routes
-- Input validation on all endpoints
+- Input validation on all write endpoints
 - SQL injection prevention (parameterized queries)
+- Row locks on bankroll operations (no double spending, no double refunds)
 - CORS configuration
-- Rate limiting ready (implementation pending)
+- Security headers (helmet) and 100 kB request body limit
+- Rate limiting on login and registration (`AUTH_RATE_LIMIT_MAX` per IP per 15 minutes)
+- In production the API refuses to start without a strong `JWT_SECRET` (32+ characters), and hides internal error messages
+- The seed script refuses to run in production unless `ALLOW_DESTRUCTIVE_SEED=true` (it deletes all data)
 
 ## 🚧 Future Enhancements
 
@@ -342,8 +350,19 @@ npm run migrate
 
 ```bash
 cd backend
-npm test
+npm run typecheck          # sources and tests
+npm test                   # unit tests (no database needed)
+
+# Integration tests run against a dedicated database (default: horse_racing_test,
+# override with TEST_DB_DATABASE). They wipe it, and refuse any database whose name
+# does not contain "test".
+createdb -h localhost -U postgres horse_racing_test
+npm run test:integration
 ```
+
+Frontend: `cd frontend && npm run lint && npm run build`.
+
+CI (`.github/workflows/ci.yml`) runs all of this on every pull request, plus the Docker image builds.
 
 ### Re-seeding Database
 
@@ -358,15 +377,30 @@ Backend:
 ```bash
 cd backend
 npm run build
-npm start
+NODE_ENV=production JWT_SECRET=<32+ random chars> npm run migrate:prod
+NODE_ENV=production JWT_SECRET=<32+ random chars> npm start
 ```
 
 Frontend:
 ```bash
 cd frontend
-npm run build
-# Serve the 'dist' folder with your preferred static server
+VITE_API_URL=https://api.example.com/api npm run build
+# Serve the 'dist' folder with your preferred static server (SPA fallback to index.html)
 ```
+
+### Running the Full Stack with Docker
+
+```bash
+export JWT_SECRET=$(openssl rand -hex 32)
+docker compose up -d --build
+# Optional demo data (deletes everything in the database):
+docker compose exec -e ALLOW_DESTRUCTIVE_SEED=true backend node build/database/seed.js
+```
+
+- Frontend: http://localhost:8080 — API: http://localhost:3333
+- The backend applies the migration at startup and refuses to start without `JWT_SECRET`
+- `VITE_API_URL` (build argument) and `CORS_ORIGIN` must match the public URLs when deploying elsewhere
+- Behind a reverse proxy, set `TRUST_PROXY=1` so rate limiting sees the real client IPs
 
 ## 🐛 Troubleshooting
 
@@ -386,7 +420,7 @@ npm run build
 - Try dropping and recreating the database:
   ```bash
   docker compose down -v
-  docker compose up -d
+  docker compose up -d postgres
   npm run migrate
   npm run seed
   ```

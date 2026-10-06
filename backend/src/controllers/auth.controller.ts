@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { JWT_SECRET } from '../config/env.js';
 import pool from '../config/database.js';
 import { AuthRequest } from '../middleware/auth.js';
 
@@ -55,10 +56,9 @@ export class AuthController {
       );
 
       // Generate JWT
-      const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
       const token = jwt.sign(
         { id: user.id, email: user.email, username: user.username, role: user.role },
-        jwtSecret,
+        JWT_SECRET,
         { expiresIn: '7d' }
       );
 
@@ -115,10 +115,9 @@ export class AuthController {
       }
 
       // Generate JWT
-      const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
       const token = jwt.sign(
         { id: user.id, email: user.email, username: user.username, role: user.role },
-        jwtSecret,
+        JWT_SECRET,
         { expiresIn: '7d' }
       );
 

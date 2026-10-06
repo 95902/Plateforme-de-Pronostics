@@ -6,11 +6,15 @@
   "main": "build/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc && cp -r src/database/migrations build/database/",
+    "typecheck": "tsc -p tsconfig.test.json",
     "start": "node build/server.js",
     "migrate": "tsx src/database/migrate.ts",
     "seed": "tsx src/database/seed.ts",
-    "test": "node --import tsx --test \"src/**/*.test.ts\""
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test:integration": "DB_DATABASE=${TEST_DB_DATABASE:-horse_racing_test} node --import tsx --test --test-concurrency=1 \"test/**/*.test.ts\"",
+    "migrate:prod": "node build/database/migrate.js",
+    "seed:prod": "node build/database/seed.js"
   },
   "keywords": [
     "horse-racing",
@@ -20,27 +24,22 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@adonisjs/auth": "^9.5.1",
-    "@adonisjs/core": "^6.19.1",
-    "@adonisjs/lucid": "^21.8.1",
-    "@adonisjs/shield": "^8.2.0",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^24.10.1",
-    "@vinejs/vine": "^4.1.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
-    "decimal.js": "^10.6.0",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.16.3",
-    "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/pg": "^8.23.1"
+    "@types/node": "^24.19.1",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3"
   }
 }

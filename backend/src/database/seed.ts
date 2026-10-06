@@ -31,6 +31,12 @@ function drawFinishOrder<T extends { odds: number }>(runners: T[]): T[] {
 }
 
 async function seed() {
+  // The seed wipes every table: never run it by accident against a production database
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DESTRUCTIVE_SEED !== 'true') {
+    console.error('❌ Refusing to seed in production: this deletes all data. Set ALLOW_DESTRUCTIVE_SEED=true to confirm.');
+    process.exit(1);
+  }
+
   console.log('🌱 Seeding database...');
 
   try {
