@@ -5,8 +5,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      # Development default; set DB_PASSWORD for any shared deployment
-      POSTGRES_PASSWORD: &db_password ${DB_PASSWORD:-postgres}
+      # No default: set DB_PASSWORD in the environment or in a root .env file (see .env.example).
+      # docker compose refuses to start while it is unset.
+      POSTGRES_PASSWORD: &db_password ${DB_PASSWORD:?}
       POSTGRES_DB: horse_racing_predictor
     ports:
       - "5432:5432"
@@ -18,7 +19,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Full stack: `JWT_SECRET=... docker compose up -d --build`
+  # Full stack: `docker compose up -d --build` (needs DB_PASSWORD and JWT_SECRET)
   # (local development only needs `docker compose up -d postgres`)
   backend:
     build: ./backend
