@@ -1,5 +1,6 @@
 import pool from '../config/database.js';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 
 // Sum of implied probabilities (1/odds) of a race: 1.18 ≈ an 18% bookmaker margin, like PMU pools
 const ODDS_OVERROUND = 1.18;
@@ -37,6 +38,13 @@ async function seed() {
     process.exit(1);
   }
 
+  // Checked before anything is deleted
+  const adminPlainPassword = process.env.SEED_ADMIN_PASSWORD || randomBytes(12).toString('base64url');
+  if (adminPlainPassword.length < 8) {
+    console.error('❌ SEED_ADMIN_PASSWORD must be at least 8 characters');
+    process.exit(1);
+  }
+
   console.log('🌱 Seeding database...');
 
   try {
@@ -60,14 +68,16 @@ async function seed() {
       [userId, 'DEPOSIT', 1000, 0, 1000, 'Initial deposit']
     );
 
-    // Admin user (can record race results and cancel races)
-    const adminPassword = await bcrypt.hash('Admin123!', 10);
+    // Admin user (can record race results and cancel races).
+    // No fixed password: an admin account with a public password would be a backdoor
+    // wherever the demo data gets deployed
+    const adminPassword = await bcrypt.hash(adminPlainPassword, 10);
     await pool.query(
       `INSERT INTO users (email, username, password, role, bankroll)
        VALUES ($1, $2, $3, $4, $5)`,
       ['admin@hippodrome.com', 'admin', adminPassword, 'admin', 0]
     );
-    console.log('✅ Admin user created (email: admin@hippodrome.com, password: Admin123!)');
+    console.log('✅ Admin user created (email: admin@hippodrome.com)');
 
     // 2. Seed Hippodromes
     const hippodromes = [
@@ -386,7 +396,7 @@ async function seed() {
     console.log('   Email: demo@hippodrome.com');
     console.log('   Password: Demo123!');
     console.log('   Initial Bankroll: 1000€');
-    console.log('   Admin: admin@hippodrome.com / Admin123!\n');
+    console.log(`   Admin: admin@hippodrome.com / ${adminPlainPassword}${process.env.SEED_ADMIN_PASSWORD ? ' (from SEED_ADMIN_PASSWORD)' : ' (generated, set SEED_ADMIN_PASSWORD to choose it)'}\n`);
 
     process.exit(0);
   } catch (error) {
