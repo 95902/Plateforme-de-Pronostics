@@ -1,13 +1,9 @@
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 import pool from '../src/config/database.js';
 import { createApp } from '../src/app.js';
 import type { AppOptions } from '../src/app.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { runMigrations } from '../src/database/migrator.js';
 
 export { pool };
 
@@ -17,8 +13,9 @@ export const query = async <T = any>(sql: string, params: unknown[] = []): Promi
   (await pool.query(sql, params)).rows;
 
 /**
- * Recreate the schema and empty every table. Refuses to run on a database whose name
- * does not contain "test", so a misconfigured run cannot wipe real data.
+ * Drop everything and rebuild the schema with the real migration runner, so every test file
+ * also checks that all migrations apply to an empty database. Refuses to run on a database
+ * whose name does not contain "test", so a misconfigured run cannot wipe real data.
  */
 export async function resetDatabase() {
   const database = process.env.DB_DATABASE ?? '';
@@ -26,13 +23,9 @@ export async function resetDatabase() {
     throw new Error(`Refusing to reset database "${database}": integration tests need a *test* database`);
   }
 
-  const migration = readFileSync(join(__dirname, '../src/database/migrations/001_create_tables.sql'), 'utf-8');
-  await pool.query(migration);
+  await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public');
+  await runMigrations(pool);
   hippodromeId = null;
-  await pool.query(
-    `TRUNCATE users, horses, jockeys, trainers, hippodromes, races, runners, results,
-              strategies, bets, transactions, simulations RESTART IDENTITY CASCADE`
-  );
 }
 
 export interface TestServer {
