@@ -121,7 +121,7 @@ export class BetsController {
       await client.query(
         `INSERT INTO transactions (user_id, type, amount, bankroll_before, bankroll_after, bet_id, description)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [req.user.id, 'DEPOSIT', bet.stake, currentBankroll, newBankroll, betId, 'Bet cancelled - refund']
+        [req.user.id, 'BET_REFUND', bet.stake, currentBankroll, newBankroll, betId, 'Bet cancelled - refund']
       );
 
       await client.query('COMMIT');

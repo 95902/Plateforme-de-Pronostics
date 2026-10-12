@@ -112,6 +112,8 @@ describe('cancelling a race', () => {
     assert.equal(response.status, 200);
     assert.deepEqual(response.body.settlement, { race_id: race.raceId, won: 0, lost: 0, refunded: 1 });
     assert.equal(await getBankroll(user.id), 1000);
+    const [refund] = await query(`SELECT type FROM transactions WHERE user_id = $1 ORDER BY id DESC LIMIT 1`, [user.id]);
+    assert.equal(refund.type, 'BET_REFUND');
 
     const retry = await user.api.post('/bets', { race_id: race.raceId, bet_type: 'simple', stake: 5, selections: [{ runner_id: race.runnerIds[0] }] });
     assert.equal(retry.status, 400);

@@ -102,7 +102,7 @@ export class SettlementService {
           `UPDATE bets SET status = 'cancelled', settled_at = CURRENT_TIMESTAMP WHERE id = $1`,
           [bet.id]
         );
-        await this.creditUser(client, bet.user_id, bet.stake, 'DEPOSIT', bet.id, `Race ${raceId} cancelled - refund`);
+        await this.creditUser(client, bet.user_id, bet.stake, 'BET_REFUND', bet.id, `Race ${raceId} cancelled - refund`);
         summary.refunded++;
         continue;
       }
@@ -195,7 +195,7 @@ export class SettlementService {
     client: PoolClient,
     userId: number,
     amount: number,
-    type: 'DEPOSIT' | 'BET_WON',
+    type: 'BET_REFUND' | 'BET_WON',
     betId: number,
     description: string
   ): Promise<void> {

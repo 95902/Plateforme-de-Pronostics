@@ -109,6 +109,12 @@ describe('cancelling bets', () => {
 
     assert.equal(responses.filter((r) => r.status === 200).length, 1);
     assert.equal(await getBankroll(user.id), 1000);
+
+    // The refund is not counted as a deposit
+    const refunds = await query(`SELECT type, amount FROM transactions WHERE bet_id = $1 AND type <> 'BET_PLACED'`, [bet.body.bet.id]);
+    assert.deepEqual(refunds, [{ type: 'BET_REFUND', amount: 10 }]);
+    const stats = await user.api.get('/bankroll/statistics');
+    assert.equal(stats.body.total_deposits, 1000);
   });
 
   test('cannot cancel once the race is running, nor cancel another user\'s bet', async () => {

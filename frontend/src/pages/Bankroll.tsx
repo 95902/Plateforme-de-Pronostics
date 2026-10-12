@@ -4,7 +4,7 @@ import type { BankrollStatistics } from '../lib/types';
 
 interface Transaction {
   id: number;
-  type: 'DEPOSIT' | 'WITHDRAWAL' | 'BET_PLACED' | 'BET_WON' | 'BET_LOST';
+  type: 'DEPOSIT' | 'WITHDRAWAL' | 'BET_PLACED' | 'BET_WON' | 'BET_LOST' | 'BET_REFUND';
   amount: number;
   bankroll_after: number;
   description: string | null;
@@ -200,6 +200,8 @@ export default function Bankroll({ onBankrollChange }: { onBankrollChange: () =>
                         ? 'bg-green-100 text-green-800'
                         : tx.type === 'BET_WON'
                         ? 'bg-blue-100 text-blue-800'
+                        : tx.type === 'BET_REFUND'
+                        ? 'bg-purple-100 text-purple-800'
                         : tx.type === 'BET_PLACED'
                         ? 'bg-yellow-100 text-yellow-800'
                         : tx.type === 'WITHDRAWAL'
