@@ -350,6 +350,10 @@ cd backend
 npm run migrate
 ```
 
+Migrations are the numbered files of `backend/src/database/migrations/`. Each one is applied once,
+in order, and recorded in the `schema_migrations` table; add a new numbered file to change the schema
+(never edit an applied one). The Docker image applies pending migrations at startup.
+
 ### Running Tests
 
 ```bash
@@ -366,7 +370,20 @@ npm run test:integration
 
 Frontend: `cd frontend && npm run lint && npm run build`.
 
-CI (`.github/workflows/ci.yml`) runs all of this on every pull request, plus the Docker image builds.
+End-to-end tests (Playwright) drive the real app in Chromium: sign-up, betting, cancellation,
+admin result entry, strategies & backtest, withdrawals. They start the compiled API and the
+production build of the frontend themselves (or reuse ones already running):
+
+```bash
+createdb -h localhost -U postgres horse_racing_e2e
+export DB_DATABASE=horse_racing_e2e SEED_ADMIN_PASSWORD=choose-one E2E_ADMIN_PASSWORD=choose-one
+(cd backend && npm run build && npm run migrate:prod && npm run seed:prod)
+cd frontend && npm run build
+npx playwright install chromium   # first time only
+npm run test:e2e
+```
+
+CI (`.github/workflows/ci.yml`) runs all of this on every pull request (end-to-end tests included), plus the Docker image builds.
 
 ### Re-seeding Database
 
