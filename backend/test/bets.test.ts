@@ -1,6 +1,6 @@
 import { after, before, beforeEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRace, createUser, getBankroll, near, pool, query, resetDatabase, startServer } from './helpers.js';
+import { client, createRace, createUser, getBankroll, near, pool, query, resetDatabase, startServer } from './helpers.js';
 import type { TestServer } from './helpers.js';
 
 let server: TestServer;
@@ -38,7 +38,7 @@ describe('placing bets', () => {
     assert.equal(await getBankroll(user.id), 990);
   });
 
-  test('combined bet payout is the product of the odds', async () => {
+  test('combined bet payout follows the Harville estimate, not the product of the odds', async () => {
     const response = await user.api.post('/bets', {
       race_id: race.raceId,
       bet_type: 'couple',
@@ -46,7 +46,41 @@ describe('placing bets', () => {
       selections: [{ runner_id: race.runnerIds[0] }, { runner_id: race.runnerIds[2] }]
     });
     assert.equal(response.status, 201);
-    assert.equal(response.body.bet.potential_payout, 30);
+    // Normalized win probabilities .436/.273/.182/.109; P(runners 1 and 3 take the first two places)
+    // = .2378; odds = (1 - 25% takeout) / .2378 = 3.15 → 2€ × 3.15. The old product of odds paid 30€
+    assert.equal(response.body.bet.potential_payout, 6.3);
+  });
+
+  test('the quote gives exactly the odds applied when the bet is placed', async () => {
+    const field = await createRace({ odds: [2.5, 4, 6, 9, 15, 30, 40] });
+    for (const [betType, count] of [['simple', 1], ['couple', 2], ['trio', 3], ['quarte', 4], ['quinte', 5]] as const) {
+      const selections = field.runnerIds.slice(0, count).map((runner_id) => ({ runner_id }));
+      const quote = await user.api.post('/bets/quote', { race_id: field.raceId, bet_type: betType, selections });
+      assert.equal(quote.status, 200, JSON.stringify(quote.body));
+
+      const bet = await user.api.post('/bets', { race_id: field.raceId, bet_type: betType, stake: 10, selections });
+      assert.equal(bet.status, 201);
+      assert.equal(bet.body.bet.potential_payout, Math.round(10 * quote.body.odds * 100) / 100, betType);
+    }
+
+    // Selecting outsiders pays more than selecting favorites
+    const favorites = await user.api.post('/bets/quote', {
+      race_id: field.raceId, bet_type: 'couple', selections: [{ runner_id: field.runnerIds[0] }, { runner_id: field.runnerIds[1] }]
+    });
+    const outsiders = await user.api.post('/bets/quote', {
+      race_id: field.raceId, bet_type: 'couple', selections: [{ runner_id: field.runnerIds[5] }, { runner_id: field.runnerIds[6] }]
+    });
+    assert.ok(outsiders.body.odds > favorites.body.odds * 10);
+  });
+
+  test('quotes are validated like bets and need authentication', async () => {
+    const finished = await createRace({ odds: [3, 3], status: 'finished' });
+    const quote = (body: object) => user.api.post('/bets/quote', body);
+
+    assert.equal((await quote({ race_id: finished.raceId, bet_type: 'simple', selections: [{ runner_id: finished.runnerIds[0] }] })).status, 400);
+    assert.equal((await quote({ race_id: race.raceId, bet_type: 'trio', selections: [{ runner_id: race.runnerIds[0] }] })).status, 400);
+    assert.equal((await quote({ race_id: 99999999, bet_type: 'simple', selections: [{ runner_id: 1 }] })).status, 404);
+    assert.equal((await client(server.url).post('/bets/quote', { race_id: race.raceId, bet_type: 'simple', selections: [] })).status, 401);
   });
 
   test('invalid bets are rejected', async () => {
@@ -109,6 +143,12 @@ describe('cancelling bets', () => {
 
     assert.equal(responses.filter((r) => r.status === 200).length, 1);
     assert.equal(await getBankroll(user.id), 1000);
+
+    // The refund is not counted as a deposit
+    const refunds = await query(`SELECT type, amount FROM transactions WHERE bet_id = $1 AND type <> 'BET_PLACED'`, [bet.body.bet.id]);
+    assert.deepEqual(refunds, [{ type: 'BET_REFUND', amount: 10 }]);
+    const stats = await user.api.get('/bankroll/statistics');
+    assert.equal(stats.body.total_deposits, 1000);
   });
 
   test('cannot cancel once the race is running, nor cancel another user\'s bet', async () => {

@@ -97,6 +97,9 @@ export const betsAPI = {
     selections: { runner_id: number }[];
     strategy_id?: number;
   }) => api.post('/bets', data),
+  /** Odds the server would apply to this bet, without placing it */
+  quote: (data: { race_id: number; bet_type: BetType; selections: { runner_id: number }[] }) =>
+    api.post('/bets/quote', data),
   cancelBet: (id: number) => api.delete(`/bets/${id}`),
 };
 

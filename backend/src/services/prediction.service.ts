@@ -86,7 +86,7 @@ export class PredictionService {
          JOIN horses h ON r.horse_id = h.id
          JOIN jockeys j ON r.jockey_id = j.id
          JOIN trainers t ON r.trainer_id = t.id
-         WHERE r.race_id = $1`,
+         WHERE r.race_id = $1 AND NOT r.non_runner`,
         [raceId]
       );
 

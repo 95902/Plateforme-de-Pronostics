@@ -49,8 +49,9 @@ describe('recording results', () => {
     assert.equal(bets.get(coupleReversed.id).status, 'won');
     assert.equal(bets.get(trioWithFourth.id).status, 'lost');
 
-    // 970 + 10×2 (simple) + 5×2×3 (couple)
-    assert.equal(await getBankroll(user.id), 1020);
+    // 970 + 10×2 (simple) + the couplé's payout fixed when it was placed
+    assert.ok(near(await getBankroll(user.id), 970 + 20 + coupleReversed.potential_payout));
+    assert.equal(bets.get(coupleReversed.id).actual_payout, coupleReversed.potential_payout);
     const [{ count }] = await query(`SELECT COUNT(*)::int as count FROM transactions WHERE type = 'BET_WON' AND user_id = $1`, [user.id]);
     assert.equal(count, 2);
 
@@ -112,6 +113,8 @@ describe('cancelling a race', () => {
     assert.equal(response.status, 200);
     assert.deepEqual(response.body.settlement, { race_id: race.raceId, won: 0, lost: 0, refunded: 1 });
     assert.equal(await getBankroll(user.id), 1000);
+    const [refund] = await query(`SELECT type FROM transactions WHERE user_id = $1 ORDER BY id DESC LIMIT 1`, [user.id]);
+    assert.equal(refund.type, 'BET_REFUND');
 
     const retry = await user.api.post('/bets', { race_id: race.raceId, bet_type: 'simple', stake: 5, selections: [{ runner_id: race.runnerIds[0] }] });
     assert.equal(retry.status, 400);

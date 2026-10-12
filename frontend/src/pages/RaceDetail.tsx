@@ -23,6 +23,10 @@ export default function RaceDetail({ user, onBankrollChange }: RaceDetailProps) 
   const [placing, setPlacing] = useState(false);
   const [betMessage, setBetMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [adminNotice, setAdminNotice] = useState('');
+  // Odds quoted by the server for a given selection (key = bet type + runner ids)
+  const [quote, setQuote] = useState<{ key: string; odds: number } | null>(null);
+  const selectionKey = `${betType}:${selected.join(',')}`;
+  const selectionComplete = selected.length === BET_TYPES.find((type) => type.value === betType)!.selections;
 
   const fetchRaceDetails = useCallback(async () => {
     try {
@@ -43,6 +47,21 @@ export default function RaceDetail({ user, onBankrollChange }: RaceDetailProps) 
     fetchRaceDetails();
   }, [fetchRaceDetails]);
 
+  // Ask the server for the odds of a complete selection: the estimate shown is the one applied
+  useEffect(() => {
+    if (!selectionComplete) return;
+    let cancelled = false;
+    betsAPI
+      .quote({ race_id: raceId, bet_type: betType, selections: selected.map((runner_id) => ({ runner_id })) })
+      .then((response) => {
+        if (!cancelled) setQuote({ key: selectionKey, odds: response.data.odds });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [raceId, betType, selected, selectionComplete, selectionKey]);
+
   if (loading) {
     return <div className="text-center py-12">Loading race details...</div>;
   }
@@ -53,15 +72,13 @@ export default function RaceDetail({ user, onBankrollChange }: RaceDetailProps) 
 
   const canBet = race.status === 'scheduled';
   const requiredSelections = BET_TYPES.find((type) => type.value === betType)!.selections;
-  const oddsByRunner = new Map(predictions.map((pred) => [pred.runner_id, pred.odds]));
   const selectedPredictions = selected
     .map((runnerId) => predictions.find((pred) => pred.runner_id === runnerId))
     .filter((pred): pred is Prediction => Boolean(pred));
   const stakeValue = parseFloat(stake);
+  const quotedOdds = selectionComplete && quote?.key === selectionKey ? quote.odds : null;
   const estimatedPayout =
-    selected.length === requiredSelections && stakeValue > 0
-      ? selected.reduce((acc, runnerId) => acc * (oddsByRunner.get(runnerId) || 0), stakeValue)
-      : null;
+    quotedOdds !== null && stakeValue > 0 ? Math.round(stakeValue * quotedOdds * 100) / 100 : null;
 
   const toggleSelection = (runnerId: number) => {
     setBetMessage(null);
@@ -233,7 +250,8 @@ export default function RaceDetail({ user, onBankrollChange }: RaceDetailProps) 
                   : '—'} ({selected.length}/{requiredSelections})
               </div>
               <div className="text-gray-900 font-medium mt-1">
-                Estimated payout: {estimatedPayout !== null ? `${estimatedPayout.toFixed(2)}€` : '—'}
+                Odds: {quotedOdds !== null ? quotedOdds.toFixed(2) : '—'} • Payout if it wins:{' '}
+                {estimatedPayout !== null ? `${estimatedPayout.toFixed(2)}€` : '—'}
               </div>
             </div>
             <button
@@ -389,7 +407,14 @@ export default function RaceDetail({ user, onBankrollChange }: RaceDetailProps) 
                       {runner.saddle_number}
                     </span>
                     <div>
-                      <h3 className="font-semibold text-gray-900">{runner.horse_name}</h3>
+                      <h3 className="font-semibold text-gray-900">
+                        {runner.horse_name}
+                        {runner.non_runner && (
+                          <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-200 text-gray-700">
+                            Non-runner
+                          </span>
+                        )}
+                      </h3>
                       <p className="text-sm text-gray-600">
                         {runner.jockey_name} • {runner.trainer_name}
                       </p>

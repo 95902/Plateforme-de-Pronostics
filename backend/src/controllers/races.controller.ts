@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../config/database.js';
 import settlementService from '../services/settlement.service.js';
+import { RACE_TIMEZONE } from '../config/env.js';
 import { parseId } from '../utils/validation.js';
 import { HttpError, sendError } from '../utils/http-error.js';
 
@@ -112,7 +113,7 @@ export class RacesController {
       const runnersResult = await pool.query(
         `SELECT
           r.id, r.saddle_number, r.barrier_draw, r.weight_carried, r.handicap,
-          r.morning_odds, r.final_odds, r.prediction_score, r.confidence_level,
+          r.morning_odds, r.final_odds, r.prediction_score, r.confidence_level, r.non_runner,
           h.id as horse_id, h.name as horse_name, h.age as horse_age, h.sex as horse_sex,
           h.career_total_races, h.career_wins,
           CASE WHEN h.career_total_races > 0
@@ -167,10 +168,10 @@ export class RacesController {
         `SELECT r.*, h.name as hippodrome_name, h.city, h.country
          FROM races r
          JOIN hippodromes h ON r.hippodrome_id = h.id
-         WHERE r.status = 'scheduled' AND r.date >= CURRENT_DATE
+         WHERE r.status = 'scheduled' AND (r.date + r.time) > (now() AT TIME ZONE $2)
          ORDER BY r.date ASC, r.time ASC
          LIMIT $1`,
-        [parseInt(limit as string)]
+        [parseInt(limit as string), RACE_TIMEZONE]
       );
 
       res.json(result.rows);
@@ -188,9 +189,9 @@ export class RacesController {
         `SELECT r.*, h.name as hippodrome_name, h.city, h.country, h.track_type
          FROM races r
          JOIN hippodromes h ON r.hippodrome_id = h.id
-         WHERE r.date = CURRENT_DATE
+         WHERE r.date = (now() AT TIME ZONE $1)::date
          ORDER BY r.time ASC`,
-        []
+        [RACE_TIMEZONE]
       );
 
       res.json(result.rows);

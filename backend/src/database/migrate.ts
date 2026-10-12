@@ -1,20 +1,15 @@
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import pool from '../config/database.js';
+import { runMigrations } from './migrator.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-async function runMigrations() {
+async function main() {
   console.log('🔄 Running migrations...');
 
   try {
-    const migrationPath = join(__dirname, 'migrations', '001_create_tables.sql');
-    const migrationSQL = readFileSync(migrationPath, 'utf-8');
-
-    await pool.query(migrationSQL);
-
-    console.log('✅ Migrations completed successfully!');
+    const applied = await runMigrations(pool);
+    for (const name of applied) {
+      console.log(`   ✔ ${name}`);
+    }
+    console.log(applied.length > 0 ? `✅ ${applied.length} migration(s) applied` : '✅ Database is up to date');
     process.exit(0);
   } catch (error) {
     console.error('❌ Migration failed:', error);
@@ -22,4 +17,4 @@ async function runMigrations() {
   }
 }
 
-runMigrations();
+main();

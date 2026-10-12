@@ -92,22 +92,27 @@ export class SettlementService {
       [raceId]
     );
 
+    // A bet including a horse withdrawn before the race (non-runner) is refunded, as at the PMU
+    const nonRunnersResult = await client.query('SELECT id FROM runners WHERE race_id = $1 AND non_runner', [raceId]);
+    const nonRunners = new Set<number>(nonRunnersResult.rows.map((row) => row.id));
+
     const strategyIds = new Set<number>();
 
     for (const bet of betsResult.rows) {
       if (bet.strategy_id) strategyIds.add(bet.strategy_id);
 
-      if (raceStatus === 'cancelled') {
+      const selectionRunnerIds = (bet.selections as { runner_id: number }[]).map((sel) => sel.runner_id);
+
+      if (raceStatus === 'cancelled' || selectionRunnerIds.some((id) => nonRunners.has(id))) {
         await client.query(
           `UPDATE bets SET status = 'cancelled', settled_at = CURRENT_TIMESTAMP WHERE id = $1`,
           [bet.id]
         );
-        await this.creditUser(client, bet.user_id, bet.stake, 'DEPOSIT', bet.id, `Race ${raceId} cancelled - refund`);
+        const reason = raceStatus === 'cancelled' ? `Race ${raceId} cancelled` : `Non-runner in bet on race ${raceId}`;
+        await this.creditUser(client, bet.user_id, bet.stake, 'BET_REFUND', bet.id, `${reason} - refund`);
         summary.refunded++;
         continue;
       }
-
-      const selectionRunnerIds = (bet.selections as { runner_id: number }[]).map((sel) => sel.runner_id);
 
       if (isWinningBet(bet.bet_type, selectionRunnerIds, finishOrder)) {
         await client.query(
@@ -195,7 +200,7 @@ export class SettlementService {
     client: PoolClient,
     userId: number,
     amount: number,
-    type: 'DEPOSIT' | 'BET_WON',
+    type: 'BET_REFUND' | 'BET_WON',
     betId: number,
     description: string
   ): Promise<void> {

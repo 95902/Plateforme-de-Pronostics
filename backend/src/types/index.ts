@@ -189,7 +189,8 @@ export enum TransactionType {
   WITHDRAWAL = 'WITHDRAWAL',
   BET_PLACED = 'BET_PLACED',
   BET_WON = 'BET_WON',
-  BET_LOST = 'BET_LOST'
+  BET_LOST = 'BET_LOST',
+  BET_REFUND = 'BET_REFUND'
 }
 
 export interface Transaction {

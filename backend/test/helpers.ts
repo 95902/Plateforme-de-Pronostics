@@ -1,13 +1,10 @@
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 import pool from '../src/config/database.js';
 import { createApp } from '../src/app.js';
 import type { AppOptions } from '../src/app.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { runMigrations } from '../src/database/migrator.js';
+import { RACE_TIMEZONE } from '../src/config/env.js';
 
 export { pool };
 
@@ -17,8 +14,9 @@ export const query = async <T = any>(sql: string, params: unknown[] = []): Promi
   (await pool.query(sql, params)).rows;
 
 /**
- * Recreate the schema and empty every table. Refuses to run on a database whose name
- * does not contain "test", so a misconfigured run cannot wipe real data.
+ * Drop everything and rebuild the schema with the real migration runner, so every test file
+ * also checks that all migrations apply to an empty database. Refuses to run on a database
+ * whose name does not contain "test", so a misconfigured run cannot wipe real data.
  */
 export async function resetDatabase() {
   const database = process.env.DB_DATABASE ?? '';
@@ -26,13 +24,9 @@ export async function resetDatabase() {
     throw new Error(`Refusing to reset database "${database}": integration tests need a *test* database`);
   }
 
-  const migration = readFileSync(join(__dirname, '../src/database/migrations/001_create_tables.sql'), 'utf-8');
-  await pool.query(migration);
+  await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public');
+  await runMigrations(pool);
   hippodromeId = null;
-  await pool.query(
-    `TRUNCATE users, horses, jockeys, trainers, hippodromes, races, runners, results,
-              strategies, bets, transactions, simulations RESTART IDENTITY CASCADE`
-  );
 }
 
 export interface TestServer {
@@ -124,7 +118,8 @@ export interface RaceFixture {
  * Create a race with one runner per odds value. All horses, jockeys and trainers have the
  * same statistics, so the prediction ranking depends only on the odds (lowest = best).
  *
- * `startsInMinutes` places the race relative to the database clock; otherwise `date` is used.
+ * `startsInMinutes` places the race relative to now in RACE_TIMEZONE (negative = already started);
+ * otherwise `date` is used.
  */
 export async function createRace({
   odds,
@@ -151,11 +146,11 @@ export async function createRace({
       ? `INSERT INTO races (hippodrome_id, race_number, date, time, name, race_type, distance, status)
          VALUES ($1, $2, $3::date, '15:00', $4, 'Plat', 2000, $5) RETURNING id`
       : `INSERT INTO races (hippodrome_id, race_number, date, time, name, race_type, distance, status)
-         VALUES ($1, $2, (LOCALTIMESTAMP + make_interval(mins => $3))::date,
-                 (LOCALTIMESTAMP + make_interval(mins => $3))::time, $4, 'Plat', 2000, $5) RETURNING id`,
+         VALUES ($1, $2, (now() AT TIME ZONE $6 + make_interval(mins => $3))::date,
+                 (now() AT TIME ZONE $6 + make_interval(mins => $3))::time, $4, 'Plat', 2000, $5) RETURNING id`,
     startsInMinutes === undefined
       ? [hippodromeId, raceCounter, date, `Test race ${raceCounter}`, status]
-      : [hippodromeId, raceCounter, startsInMinutes, `Test race ${raceCounter}`, status]
+      : [hippodromeId, raceCounter, startsInMinutes, `Test race ${raceCounter}`, status, RACE_TIMEZONE]
   );
 
   const runnerIds: number[] = [];

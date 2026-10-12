@@ -4,6 +4,7 @@ import betService from './bet.service.js';
 import { analyzeRace, decideBets, nextState, proposeBets, totalStake as sumStakes, INITIAL_STATE } from './strategy-engine.js';
 import type { EngineRunner, StrategyState, StrategyType } from './strategy-engine.js';
 import { HttpError } from '../utils/http-error.js';
+import { RACE_TIMEZONE } from '../config/env.js';
 
 /** Active strategies bet on scheduled races starting within this window */
 const LIVE_BETTING_WINDOW = '1 hour';
@@ -81,7 +82,7 @@ export class StrategyService {
        JOIN horses h ON r.horse_id = h.id
        JOIN jockeys j ON r.jockey_id = j.id
        JOIN trainers t ON r.trainer_id = t.id
-       WHERE r.race_id = ANY($1::int[])`,
+       WHERE r.race_id = ANY($1::int[]) AND NOT r.non_runner`,
       [races.map((race) => race.id)]
     );
 
@@ -286,9 +287,9 @@ export class StrategyService {
     const racesResult = await pool.query(
       `SELECT id, distance FROM races
        WHERE status = 'scheduled'
-         AND (date + time) BETWEEN LOCALTIMESTAMP AND LOCALTIMESTAMP + $1::interval
+         AND (date + time) BETWEEN (now() AT TIME ZONE $2) AND (now() AT TIME ZONE $2) + $1::interval
        ORDER BY date, time, id`,
-      [LIVE_BETTING_WINDOW]
+      [LIVE_BETTING_WINDOW, RACE_TIMEZONE]
     );
     if (racesResult.rows.length === 0) return summary;
 

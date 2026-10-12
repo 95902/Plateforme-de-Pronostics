@@ -1,7 +1,12 @@
 import pool from './config/database.js';
+import { getJwtSecret } from './config/env.js';
 import { createApp } from './app.js';
 import settlementService from './services/settlement.service.js';
 import strategyService from './services/strategy.service.js';
+import raceService from './services/race.service.js';
+
+// Fail fast (in production) when the JWT secret is missing or weak
+getJwtSecret();
 
 const app = createApp();
 const PORT = process.env.PORT || 3333;
@@ -34,6 +39,18 @@ async function startServer() {
       }
     };
 
+    // Close betting on races whose start time has passed
+    const startDueRaces = async () => {
+      try {
+        const started = await raceService.startDueRaces();
+        if (started.length > 0) {
+          console.log(`🏁 ${started.length} race(s) started, betting closed: ${started.join(', ')}`);
+        }
+      } catch (error) {
+        console.error('Race start job error:', error);
+      }
+    };
+
     // Let active strategies bet on races starting soon
     const runActiveStrategies = async () => {
       try {
@@ -52,6 +69,7 @@ async function startServer() {
       if (jobsRunning) return;
       jobsRunning = true;
       try {
+        await startDueRaces();
         await settlePendingBets();
         await runActiveStrategies();
       } finally {

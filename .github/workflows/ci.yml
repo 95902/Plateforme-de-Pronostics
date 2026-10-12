@@ -70,6 +70,72 @@ jobs:
       - name: Typecheck and build
         run: npm run build
 
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          # Throwaway database reachable only from this job: no password needed
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: horse_racing_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_DATABASE: horse_racing_e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Admin password for this run (random, never committed)
+        run: |
+          password=$(openssl rand -hex 16)
+          echo "::add-mask::$password"
+          echo "SEED_ADMIN_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "E2E_ADMIN_PASSWORD=$password" >> "$GITHUB_ENV"
+      - name: Build, migrate and seed the API
+        working-directory: backend
+        run: |
+          npm ci
+          npm run build
+          npm run migrate:prod
+          npm run seed:prod
+      - name: Build the frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests
+        working-directory: frontend
+        run: npm run test:e2e
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          retention-days: 7
+
   docker:
     runs-on: ubuntu-latest
     needs: [backend, frontend]
