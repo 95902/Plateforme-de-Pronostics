@@ -67,6 +67,8 @@ export const racesAPI = {
 export const predictionsAPI = {
   getRacePredictions: (raceId: number) => api.get(`/predictions/race/${raceId}`),
   getValueBets: (raceId: number) => api.get(`/predictions/race/${raceId}/value-bets`),
+  /** Model vs market on the races finished in the period */
+  getEvaluation: (params: { from: string; to: string }) => api.get('/predictions/evaluation', { params }),
 };
 
 export const bankrollAPI = {

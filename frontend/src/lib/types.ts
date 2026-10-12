@@ -190,3 +190,39 @@ export interface Simulation {
     }[];
   };
 }
+
+export interface CalibrationBand {
+  from: number;
+  to: number;
+  runners: number;
+  predicted: number;
+  actual: number;
+}
+
+export interface ProbabilityMetrics {
+  log_loss: number;
+  brier: number;
+  top_pick_win_rate: number;
+  calibration: CalibrationBand[];
+}
+
+export interface BettingResult {
+  bets: number;
+  wins: number;
+  staked: number;
+  returned: number;
+  roi: number;
+}
+
+export interface EvaluationReport {
+  from: string;
+  to: string;
+  races: number;
+  skipped_races: number;
+  runners: number;
+  model: ProbabilityMetrics;
+  market: ProbabilityMetrics;
+  blend: ProbabilityMetrics & { model_weight: number };
+  best: 'model' | 'market' | 'blend';
+  betting: { value_bets: BettingResult & { min_edge: number }; favorites: BettingResult };
+}

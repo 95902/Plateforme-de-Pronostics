@@ -179,6 +179,10 @@ An admin account is also created (can record race results and cancel races):
 - Win probabilities: each runner's share of the race's total score
 - Value bet detection: expected profit (probability × odds − 1) of at least 10%
 - Top 5 recommendations per race
+- **Evaluation against the odds** (Model page, `GET /api/predictions/evaluation`): on finished races,
+  compares the model's win probabilities with the market's (odds without the bookmaker margin) and a
+  blend of both — log-loss, Brier score, calibration, and the return of 1€ on each value bet vs. each
+  favorite. A model that does not beat the odds gives value bets with no real edge
 
 ### 4. Betting Strategies
 
@@ -262,6 +266,7 @@ An admin account is also created (can record race results and cancel races):
 ### Predictions
 - `GET /api/predictions/race/:raceId` - Get race predictions
 - `GET /api/predictions/race/:raceId/value-bets` - Get value bets
+- `GET /api/predictions/evaluation?from=YYYY-MM-DD&to=YYYY-MM-DD` - Model vs. market on finished races (default: last 12 months)
 
 ### Bankroll
 - `GET /api/bankroll` - Get current bankroll
@@ -376,7 +381,7 @@ npm run test:integration
 Frontend: `cd frontend && npm run lint && npm run build`.
 
 End-to-end tests (Playwright) drive the real app in Chromium: sign-up, betting, cancellation,
-admin result entry, strategies & backtest, withdrawals. They start the compiled API and the
+admin result entry, strategies & backtest, withdrawals, model evaluation. They start the compiled API and the
 production build of the frontend themselves (or reuse ones already running):
 
 ```bash
@@ -410,6 +415,14 @@ npm run fetch:open-pmu -- --from 2025-01-01 --to 2025-03-31   # [--discipline al
 ```
 See [`docs/sources-de-donnees.md`](docs/sources-de-donnees.md) for the available data sources and
 their licensing constraints.
+
+Once real results are imported, check whether the model beats the odds:
+
+```bash
+npm run evaluate -- --from 2025-01-01 --to 2025-03-31   # default: last 12 months
+```
+
+On the demo data the market always wins: its random results only depend on the odds.
 
 ### Re-seeding Database
 
