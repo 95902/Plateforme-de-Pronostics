@@ -75,7 +75,7 @@ async function priceSelection(
 
   // Every runner of the race: combined odds depend on the whole field
   const runnersResult = await db.query(
-    `SELECT id, saddle_number, COALESCE(final_odds, morning_odds) as odds FROM runners WHERE race_id = $1`,
+    `SELECT id, saddle_number, COALESCE(final_odds, morning_odds) as odds, non_runner FROM runners WHERE race_id = $1`,
     [raceId]
   );
   const runnersById = new Map(runnersResult.rows.map((runner) => [runner.id as number, runner]));
@@ -83,12 +83,15 @@ async function priceSelection(
   if (runnerIds.some((id) => !runnersById.has(id))) {
     throw new HttpError(400, 'All selected runners must belong to this race');
   }
+  if (runnerIds.some((id) => runnersById.get(id).non_runner)) {
+    throw new HttpError(400, 'A selected horse is a non-runner');
+  }
   if (runnerIds.some((id) => !(runnersById.get(id).odds > 1))) {
     throw new HttpError(400, 'Odds are not available for a selected runner');
   }
 
   const oddsByRunner = new Map(
-    runnersResult.rows.filter((runner) => runner.odds > 1).map((runner) => [runner.id as number, runner.odds as number])
+    runnersResult.rows.filter((runner) => runner.odds > 1 && !runner.non_runner).map((runner) => [runner.id as number, runner.odds as number])
   );
 
   return {

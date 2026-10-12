@@ -319,7 +319,7 @@ The database seeder creates:
 ### Backend
 - [x] Strategy execution engine (auto-betting)
 - [x] Simulation/backtesting service
-- [ ] CSV import for race data
+- [x] Race data import (neutral JSON format)
 - [ ] Real-time odds updates
 - [ ] WebSocket for live race updates
 - [ ] Email notifications
@@ -387,6 +387,21 @@ npm run test:e2e
 ```
 
 CI (`.github/workflows/ci.yml`) runs all of this on every pull request (end-to-end tests included), plus the Docker image builds.
+
+### Importing Real Race Data
+
+Real data (any source) is loaded through a neutral JSON format, documented in
+[`docs/format-import.md`](docs/format-import.md) with an [example](docs/exemple-import.json):
+
+```bash
+cd backend
+npm run import -- day.json --dry-run   # validate only
+npm run import -- day.json             # import (re-importing updates, never duplicates)
+```
+
+Importing a finished race records the arrival and settles bets; non-runners are refunded.
+See [`docs/sources-de-donnees.md`](docs/sources-de-donnees.md) for the available data sources and
+their licensing constraints.
 
 ### Re-seeding Database
 

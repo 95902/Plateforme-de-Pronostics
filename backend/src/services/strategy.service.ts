@@ -82,7 +82,7 @@ export class StrategyService {
        JOIN horses h ON r.horse_id = h.id
        JOIN jockeys j ON r.jockey_id = j.id
        JOIN trainers t ON r.trainer_id = t.id
-       WHERE r.race_id = ANY($1::int[])`,
+       WHERE r.race_id = ANY($1::int[]) AND NOT r.non_runner`,
       [races.map((race) => race.id)]
     );
 

@@ -1,0 +1,46 @@
+{
+  "source": "exemple",
+  "races": [
+    {
+      "external_id": "2026-10-01-R1C1",
+      "date": "2026-10-01",
+      "time": "13:50",
+      "racecourse": { "name": "ParisLongchamp", "city": "Paris", "country": "France", "surface": "Gazon" },
+      "race_number": 1,
+      "name": "Prix de l'Exemple",
+      "discipline": "Plat",
+      "distance": 2000,
+      "prize_money": 52000,
+      "track_condition": "Souple",
+      "status": "finished",
+      "runners": [
+        { "saddle_number": 1, "horse": { "name": "Exemple Un", "age": 4, "sex": "M" }, "jockey": { "name": "J. Martin" }, "trainer": { "name": "A. Durand" }, "weight": 58, "morning_odds": 3.2, "final_odds": 2.9, "finish_position": 2 },
+        { "saddle_number": 2, "horse": { "name": "Exemple Deux", "age": 5, "sex": "F" }, "jockey": { "name": "C. Petit" }, "trainer": { "name": "B. Moreau" }, "weight": 56.5, "morning_odds": 4.5, "final_odds": 5.1, "finish_position": 1, "finish_time": "2:04.31" },
+        { "saddle_number": 3, "horse": { "name": "Exemple Trois", "age": 3 }, "jockey": { "name": "P. Leroy" }, "trainer": { "name": "A. Durand" }, "morning_odds": 8, "final_odds": 7.4, "finish_position": 3 },
+        { "saddle_number": 4, "horse": { "name": "Exemple Quatre", "age": 6 }, "jockey": { "name": "M. Roux" }, "trainer": { "name": "C. Fournier" }, "morning_odds": 12, "non_runner": true },
+        { "saddle_number": 5, "horse": { "name": "Exemple Cinq", "age": 4 }, "jockey": { "name": "J. Martin" }, "trainer": { "name": "B. Moreau" }, "morning_odds": 15, "final_odds": 18, "finish_position": 4 }
+      ],
+      "dividends": [
+        { "bet_type": "simple", "combination": [2], "payout_per_euro": 5.1 },
+        { "bet_type": "couple", "combination": [1, 2], "payout_per_euro": 6.8 },
+        { "bet_type": "trio", "combination": [1, 2, 3], "payout_per_euro": 21.4 }
+      ]
+    },
+    {
+      "external_id": "2030-06-01-R1C2",
+      "date": "2030-06-01",
+      "time": "15:15",
+      "racecourse": { "name": "Vincennes", "city": "Paris", "country": "France", "surface": "Sable" },
+      "race_number": 2,
+      "name": "Prix du Futur",
+      "discipline": "Trot",
+      "distance": 2700,
+      "status": "scheduled",
+      "runners": [
+        { "saddle_number": 1, "horse": { "name": "Futur Un", "age": 5 }, "jockey": { "name": "D. Bazire" }, "trainer": { "name": "E. Allard" }, "morning_odds": 2.8 },
+        { "saddle_number": 2, "horse": { "name": "Futur Deux", "age": 6 }, "jockey": { "name": "F. Nivard" }, "trainer": { "name": "E. Allard" }, "morning_odds": 4.2 },
+        { "saddle_number": 3, "horse": { "name": "Futur Trois", "age": 7 }, "jockey": { "name": "G. Raffin" }, "trainer": { "name": "H. Lemoine" }, "morning_odds": 6.5 }
+      ]
+    }
+  ]
+}

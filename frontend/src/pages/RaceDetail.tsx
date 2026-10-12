@@ -407,7 +407,14 @@ export default function RaceDetail({ user, onBankrollChange }: RaceDetailProps) 
                       {runner.saddle_number}
                     </span>
                     <div>
-                      <h3 className="font-semibold text-gray-900">{runner.horse_name}</h3>
+                      <h3 className="font-semibold text-gray-900">
+                        {runner.horse_name}
+                        {runner.non_runner && (
+                          <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-200 text-gray-700">
+                            Non-runner
+                          </span>
+                        )}
+                      </h3>
                       <p className="text-sm text-gray-600">
                         {runner.jockey_name} • {runner.trainer_name}
                       </p>

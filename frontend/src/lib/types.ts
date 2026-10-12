@@ -54,6 +54,8 @@ export interface Runner {
   trainer_name: string;
   weight_carried: number | null;
   final_odds: number | null;
+  /** Withdrawn before the race: bets on it are refunded */
+  non_runner: boolean;
 }
 
 export interface RaceResult {

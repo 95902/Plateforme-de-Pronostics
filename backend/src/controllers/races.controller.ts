@@ -113,7 +113,7 @@ export class RacesController {
       const runnersResult = await pool.query(
         `SELECT
           r.id, r.saddle_number, r.barrier_draw, r.weight_carried, r.handicap,
-          r.morning_odds, r.final_odds, r.prediction_score, r.confidence_level,
+          r.morning_odds, r.final_odds, r.prediction_score, r.confidence_level, r.non_runner,
           h.id as horse_id, h.name as horse_name, h.age as horse_age, h.sex as horse_sex,
           h.career_total_races, h.career_wins,
           CASE WHEN h.career_total_races > 0
