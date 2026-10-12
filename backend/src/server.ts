@@ -1,8 +1,12 @@
 import pool from './config/database.js';
+import { getJwtSecret } from './config/env.js';
 import { createApp } from './app.js';
 import settlementService from './services/settlement.service.js';
 import strategyService from './services/strategy.service.js';
 import raceService from './services/race.service.js';
+
+// Fail fast (in production) when the JWT secret is missing or weak
+getJwtSecret();
 
 const app = createApp();
 const PORT = process.env.PORT || 3333;

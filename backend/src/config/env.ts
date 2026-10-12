@@ -28,7 +28,16 @@ export function resolveJwtSecret(env: NodeJS.ProcessEnv = process.env): string {
   return secret;
 }
 
-export const JWT_SECRET = resolveJwtSecret();
+let jwtSecret: string | undefined;
+
+/**
+ * The JWT secret, resolved on first use so that scripts which never sign tokens (migrations,
+ * imports) neither need it nor warn about it. The server calls it at startup to fail fast.
+ */
+export function getJwtSecret(): string {
+  jwtSecret ??= resolveJwtSecret();
+  return jwtSecret;
+}
 
 /**
  * Time zone of the races' date/time columns (local times at the racecourse). "Now" is always

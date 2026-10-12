@@ -81,7 +81,30 @@ courses (partants, cotes, arrivées, rapports), pour que les pronostics et les b
    (log-loss, calibration, ROI en backtest). Un modèle qui ne bat pas les cotes n'a pas de valeur
    pour parier.
 
-## Questions pour vous
+## Décision (octobre 2026)
+
+- Usage **privé**, pas de contact chez le PMU ni chez France Galop / LeTrot, priorité au **plat**.
+- Source retenue pour commencer : **Open PMU API**, via un adaptateur
+  (`backend/src/services/import/adapters/open-pmu.ts`) et la commande :
+
+  ```bash
+  cd backend
+  npm run fetch:open-pmu -- --from 2025-01-01 --to 2025-03-31            # plat, importé
+  npm run fetch:open-pmu -- --from 2025-01-01 --to 2025-01-07 --dry-run  # tester sans importer
+  ```
+
+  Options : `--discipline Plat|Trot|Obstacles|all`, `--save <dossier>` (garde les fichiers convertis),
+  `--allow-incomplete`, `--delay-ms` (pause entre deux requêtes, 1,5 s par défaut), 366 jours maximum
+  par lancement.
+- Limites de cette source :
+  - **courses terminées uniquement** : elle construit l'historique (modèle, backtest) mais ne fournit
+    pas le programme des courses à venir ;
+  - **pas de rapports PMU** ;
+  - les courses dont tous les partants ne sont pas détaillés sont **ignorées par défaut** (elles
+    fausseraient les probabilités) ; les ex æquo aussi pour l'instant ;
+  - aucun engagement de disponibilité ; à utiliser avec modération et pour un usage privé.
+
+## Questions (posées avant la décision)
 
 - Visez-vous un usage **privé** (outil personnel) ou **public** (site ouvert, payant ou non) ? Les
   contraintes de licence ne sont pas du tout les mêmes.

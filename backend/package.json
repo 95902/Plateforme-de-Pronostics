@@ -12,11 +12,13 @@
     "migrate": "tsx src/database/migrate.ts",
     "seed": "tsx src/database/seed.ts",
     "import": "tsx src/database/import.ts",
+    "fetch:open-pmu": "tsx src/database/fetch-open-pmu.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "test:integration": "DB_DATABASE=${TEST_DB_DATABASE:-horse_racing_test} node --import tsx --test --test-concurrency=1 \"test/**/*.test.ts\"",
     "migrate:prod": "node build/database/migrate.js",
     "seed:prod": "node build/database/seed.js",
-    "import:prod": "node build/database/import.js"
+    "import:prod": "node build/database/import.js",
+    "fetch:open-pmu:prod": "node build/database/fetch-open-pmu.js"
   },
   "keywords": [
     "horse-racing",

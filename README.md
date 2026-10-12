@@ -400,6 +400,12 @@ npm run import -- day.json             # import (re-importing updates, never dup
 ```
 
 Importing a finished race records the arrival and settles bets; non-runners are refunded.
+
+For French flat races, results can be fetched from Open PMU API (unofficial source, private use only):
+
+```bash
+npm run fetch:open-pmu -- --from 2025-01-01 --to 2025-03-31   # [--discipline all] [--dry-run] [--save dir]
+```
 See [`docs/sources-de-donnees.md`](docs/sources-de-donnees.md) for the available data sources and
 their licensing constraints.
 
