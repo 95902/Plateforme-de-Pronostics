@@ -304,6 +304,9 @@ export default function RaceDetail({ user, onBankrollChange }: RaceDetailProps) 
                   Horse
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Form
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Odds
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -347,6 +350,12 @@ export default function RaceDetail({ user, onBankrollChange }: RaceDetailProps) 
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">{pred.horse_name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                      <span className="font-mono">{pred.form || '—'}</span>
+                      <div className="text-xs text-gray-500">
+                        {pred.horse_wins}/{pred.horse_starts} wins
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {pred.odds?.toFixed(2)}

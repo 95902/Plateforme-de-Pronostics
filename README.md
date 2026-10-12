@@ -167,13 +167,15 @@ An admin account is also created (can record race results and cancel races):
 - Admins can record the finishing order (or cancel the race) directly from the race page
 
 ### 3. AI Predictions
-- **Multi-criteria scoring algorithm:**
-  - Performance historique (40%)
-  - Forme récente (25%)
-  - Jockey/Entraîneur (15%)
-  - Conditions course (10%)
-  - Valeur cote (10%)
-- Confidence levels (High/Medium/Low)
+- **Point-in-time statistics**: each runner is scored only with what was known before the race (races finished before its start), so backtests have no look-ahead bias
+- **Multi-criteria score (0-100)**:
+  - Historical performance (40%): horse's win and place rates
+  - Recent form (25%): last 5 runs, most recent weighted most (shown as the "musique", e.g. `1-0-3`)
+  - Jockey/Trainer (15%): win rates over the previous 12 months
+  - Race conditions (10%): place rate in the same 200 m distance band
+  - Odds (10%): the market's opinion
+  - Rates are smoothed towards typical values when the history is short
+- Confidence levels: High (score ≥ 40, about the top 3%), Medium (≥ 30), Low
 - Win probabilities: each runner's share of the race's total score
 - Value bet detection: expected profit (probability × odds − 1) of at least 10%
 - Top 5 recommendations per race
