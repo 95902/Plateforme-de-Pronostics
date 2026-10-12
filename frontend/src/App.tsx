@@ -8,6 +8,7 @@ import RaceDetail from './pages/RaceDetail';
 import Bets from './pages/Bets';
 import Strategies from './pages/Strategies';
 import Bankroll from './pages/Bankroll';
+import Model from './pages/Model';
 import Layout from './components/Layout';
 import { authAPI } from './lib/api';
 import type { User } from './lib/types';
@@ -75,6 +76,7 @@ function App() {
         />
         <Route path="/bets" element={protectedPage(<Bets onBankrollChange={refreshUser} />)} />
         <Route path="/strategies" element={protectedPage(<Strategies />)} />
+        <Route path="/model" element={protectedPage(<Model />)} />
         <Route path="/bankroll" element={protectedPage(<Bankroll onBankrollChange={refreshUser} />)} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import predictionService from '../services/prediction.service.js';
 import { parseId } from '../utils/validation.js';
 import { HttpError, sendError } from '../utils/http-error.js';
+import { evaluateModel } from '../services/evaluation.service.js';
 
 export class PredictionsController {
   async getRacePredictions(req: Request, res: Response) {
@@ -44,6 +45,28 @@ export class PredictionsController {
       }
       console.error('Get value bets error:', error);
       sendError(res, 500, 'Failed to get value bets');
+    }
+  }
+
+  /**
+   * Model vs market on the races finished between `from` and `to` (default: the last 12 months)
+   */
+  async getEvaluation(req: Request, res: Response) {
+    const isDate = (value: unknown): value is string =>
+      typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+    const today = new Date().toISOString().slice(0, 10);
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const { from = oneYearAgo, to = today } = req.query;
+
+    if (!isDate(from) || !isDate(to) || from > to) {
+      return sendError(res, 400, 'from and to must be dates (YYYY-MM-DD) with from <= to');
+    }
+
+    try {
+      res.json(await evaluateModel(from, to));
+    } catch (error) {
+      console.error('Evaluation error:', error);
+      sendError(res, 500, 'Evaluation failed');
     }
   }
 }

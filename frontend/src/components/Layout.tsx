@@ -47,6 +47,12 @@ export default function Layout({ user, onLogout, children }: LayoutProps) {
                 Strategies
               </Link>
               <Link
+                to="/model"
+                className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                Model
+              </Link>
+              <Link
                 to="/bankroll"
                 className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
               >
