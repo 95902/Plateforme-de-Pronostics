@@ -161,7 +161,8 @@ An admin account is also created (can record race results and cancel races):
 - View upcoming and past races
 - Detailed race information with runners and the official result
 - Filter by status and hippodrome
-- Bet slip on the race page: pick the horses in the predictions table, choose the bet type and stake, see the estimated payout
+- Bet slip on the race page: pick the horses in the predictions table, choose the bet type and stake, see the odds and payout quoted by the server (`POST /api/bets/quote`)
+- Betting closes at the race's start time (local time at the racecourse, `RACE_TIMEZONE`, default `Europe/Paris`); a background job then marks the race as running
 - **My Bets** page: history with status filters, cancel pending bets until the race starts
 - Admins can record the finishing order (or cancel the race) directly from the race page
 
@@ -203,6 +204,7 @@ An admin account is also created (can record race results and cancel races):
 - Bets are settled when an admin records a race's results (`POST /api/races/:id/results`)
 - A background job also settles, at startup and every minute, any finished race that still has pending bets (e.g. results imported directly into the database)
 - Fixed odds: the odds are snapshotted when the bet is placed, and a winning bet pays `stake × odds` (`potential_payout`)
+- Odds of combined bets (couplé, trio, quarté, quinté) are estimated from the win odds: win probabilities are the normalized implied probabilities, the chance that the selection takes the first N places (any order) follows the Harville model, and odds = (1 − takeout) / probability, with takeouts of 25% (couplé, trio), 30% (quarté) and 35% (quinté) approximating PMU pools. Real PMU dividends are pool-based and only known after the race
 - **Simple** wins if the horse finishes 1st; **Couplé / Trio / Quarté / Quinté** win if the selections are exactly the first 2 / 3 / 4 / 5 finishers, in any order
 - Disqualified runners are ignored when ranking
 - Bets on a cancelled race are refunded
@@ -277,6 +279,7 @@ An admin account is also created (can record race results and cancel races):
 
 ### Bets
 - `GET /api/bets` - List user bets
+- `POST /api/bets/quote` - Odds of a bet without placing it
 - `POST /api/bets` - Place bet
 - `DELETE /api/bets/:id` - Cancel bet
 

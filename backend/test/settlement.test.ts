@@ -49,8 +49,9 @@ describe('recording results', () => {
     assert.equal(bets.get(coupleReversed.id).status, 'won');
     assert.equal(bets.get(trioWithFourth.id).status, 'lost');
 
-    // 970 + 10×2 (simple) + 5×2×3 (couple)
-    assert.equal(await getBankroll(user.id), 1020);
+    // 970 + 10×2 (simple) + the couplé's payout fixed when it was placed
+    assert.ok(near(await getBankroll(user.id), 970 + 20 + coupleReversed.potential_payout));
+    assert.equal(bets.get(coupleReversed.id).actual_payout, coupleReversed.potential_payout);
     const [{ count }] = await query(`SELECT COUNT(*)::int as count FROM transactions WHERE type = 'BET_WON' AND user_id = $1`, [user.id]);
     assert.equal(count, 2);
 

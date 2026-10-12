@@ -7,6 +7,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/', betsController.getBets.bind(betsController));
+router.post('/quote', betsController.quote.bind(betsController));
 router.post('/', betsController.placeBet.bind(betsController));
 router.delete('/:id', betsController.cancelBet.bind(betsController));
 

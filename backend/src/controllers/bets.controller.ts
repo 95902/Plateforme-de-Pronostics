@@ -63,6 +63,18 @@ export class BetsController {
     }
   }
 
+  async quote(req: AuthRequest, res: Response) {
+    try {
+      res.json(await betService.quote(req.body));
+    } catch (error) {
+      if (error instanceof HttpError) {
+        return sendError(res, error.status, error.message);
+      }
+      console.error('Quote bet error:', error);
+      sendError(res, 500, 'Failed to price bet');
+    }
+  }
+
   async cancelBet(req: AuthRequest, res: Response) {
     if (!req.user) {
       return res.status(401).json({ error: { message: 'Unauthorized', status: 401 } });

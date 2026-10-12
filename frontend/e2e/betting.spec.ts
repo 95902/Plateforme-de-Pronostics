@@ -12,8 +12,13 @@ test('place a couplé, cancel it from My Bets and get refunded', async ({ page }
   await expect(checkboxes.nth(2)).toBeDisabled();
 
   await page.fill('#stake', '10');
+  // The estimate comes from the server quote and is exactly what the bet will pay
+  const estimate = page.getByText(/Payout if it wins: \d+\.\d{2}€/);
+  await expect(estimate).toBeVisible();
+  const estimatedPayout = (await estimate.innerText()).match(/Payout if it wins: ([\d.]+)€/)![1];
+
   await page.getByRole('button', { name: 'Place bet' }).click();
-  await expect(page.getByText('Bet placed!')).toBeVisible();
+  await expect(page.getByText(`Bet placed! Potential payout: ${estimatedPayout}€`)).toBeVisible();
   await expect.poll(() => headerBankroll(page)).toBe(990);
 
   page.once('dialog', (dialog) => dialog.accept());
