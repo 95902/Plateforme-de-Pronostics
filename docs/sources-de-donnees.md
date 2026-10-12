@@ -33,7 +33,7 @@ courses (partants, cotes, arrivées, rapports), pour que les pronostics et les b
   voie à la fois fiable et sûre juridiquement pour une mise en production.
 
 ### 2. Sources tierces non officielles
-- **[Open PMU API](https://github.com/nanaelie/open-pmu-api)** : API gratuite (code MIT) avec les
+- **[Open PMU API](https://github.com/open-pmu-api/open-pmu-api)** : API gratuite (code MIT) avec les
   arrivées depuis 2004, les partants, les cotes, la musique et les jockeys/entraîneurs. Pas de rapports.
   Elle précise elle-même que sa licence « ne confère aucun droit particulier sur les données de
   courses » : la provenance et les droits sur les données ne sont pas établis.
@@ -103,6 +103,25 @@ courses (partants, cotes, arrivées, rapports), pour que les pronostics et les b
   - les courses dont tous les partants ne sont pas détaillés sont **ignorées par défaut** (elles
     fausseraient les probabilités) ; les ex æquo aussi pour l'instant ;
   - aucun engagement de disponibilité ; à utiliser avec modération et pour un usage privé.
+
+## Essai réel de l'Open PMU API (octobre 2026) : inutilisable pour le modèle
+
+Premier lancement sur de vraies dates (janvier et juin 2025, `--dry-run`) : **aucune course importée**.
+
+- **Une seule course par jour** dans la base de l'API (sans doute le Quinté+ ; en janvier, du trot à
+  Vincennes).
+- **Seuls les premiers arrivés sont détaillés** : 5 à 7 chevaux sur 13 à 16 partants. Toutes les
+  courses sont donc écartées comme incomplètes (« 6 of 14 starters detailed »), en plat comme en trot.
+- Le code de l'API ([`get-data.ts`](https://github.com/open-pmu-api/open-pmu-api/blob/main/get-data.ts))
+  ne filtre rien : il renvoie toutes les lignes `race_results` de sa base pour la date demandée. La
+  limite vient des données qu'elle a collectées, pas d'un paramètre qu'on pourrait changer.
+- Importer malgré tout avec `--allow-incomplete` est **à proscrire** : il ne resterait que des chevaux
+  bien classés, ce qui fausse à la fois le modèle (tout le monde « court bien ») et l'évaluation (les
+  cotes du marché ne somment plus à 100 %).
+
+Il faut donc une source avec **tous les partants et leurs cotes** : export turf.bzh (payant, courses
+françaises) ou Betfair Historical Data (gratuit en Basic, courses britanniques et irlandaises, licence
+claire) — voir plus haut.
 
 ## Questions (posées avant la décision)
 

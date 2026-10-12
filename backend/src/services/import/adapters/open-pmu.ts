@@ -1,5 +1,5 @@
 /**
- * Adapter for Open PMU API (https://github.com/nanaelie/open-pmu-api), an unofficial, free API of
+ * Adapter for Open PMU API (https://github.com/open-pmu-api/open-pmu-api), an unofficial, free API of
  * French race results. It converts its responses to the neutral import format.
  *
  * Limits of this source: finished races only (no upcoming programme), no PMU dividends, and the
