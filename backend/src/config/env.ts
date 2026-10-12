@@ -29,3 +29,9 @@ export function resolveJwtSecret(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 export const JWT_SECRET = resolveJwtSecret();
+
+/**
+ * Time zone of the races' date/time columns (local times at the racecourse). "Now" is always
+ * computed in this zone, so opening and closing bets does not depend on the server's time zone.
+ */
+export const RACE_TIMEZONE = process.env.RACE_TIMEZONE || 'Europe/Paris';

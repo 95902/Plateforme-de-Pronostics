@@ -4,6 +4,7 @@ import pool from '../src/config/database.js';
 import { createApp } from '../src/app.js';
 import type { AppOptions } from '../src/app.js';
 import { runMigrations } from '../src/database/migrator.js';
+import { RACE_TIMEZONE } from '../src/config/env.js';
 
 export { pool };
 
@@ -117,7 +118,8 @@ export interface RaceFixture {
  * Create a race with one runner per odds value. All horses, jockeys and trainers have the
  * same statistics, so the prediction ranking depends only on the odds (lowest = best).
  *
- * `startsInMinutes` places the race relative to the database clock; otherwise `date` is used.
+ * `startsInMinutes` places the race relative to now in RACE_TIMEZONE (negative = already started);
+ * otherwise `date` is used.
  */
 export async function createRace({
   odds,
@@ -144,11 +146,11 @@ export async function createRace({
       ? `INSERT INTO races (hippodrome_id, race_number, date, time, name, race_type, distance, status)
          VALUES ($1, $2, $3::date, '15:00', $4, 'Plat', 2000, $5) RETURNING id`
       : `INSERT INTO races (hippodrome_id, race_number, date, time, name, race_type, distance, status)
-         VALUES ($1, $2, (LOCALTIMESTAMP + make_interval(mins => $3))::date,
-                 (LOCALTIMESTAMP + make_interval(mins => $3))::time, $4, 'Plat', 2000, $5) RETURNING id`,
+         VALUES ($1, $2, (now() AT TIME ZONE $6 + make_interval(mins => $3))::date,
+                 (now() AT TIME ZONE $6 + make_interval(mins => $3))::time, $4, 'Plat', 2000, $5) RETURNING id`,
     startsInMinutes === undefined
       ? [hippodromeId, raceCounter, date, `Test race ${raceCounter}`, status]
-      : [hippodromeId, raceCounter, startsInMinutes, `Test race ${raceCounter}`, status]
+      : [hippodromeId, raceCounter, startsInMinutes, `Test race ${raceCounter}`, status, RACE_TIMEZONE]
   );
 
   const runnerIds: number[] = [];

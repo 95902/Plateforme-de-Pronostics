@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.js';
 import betService from '../services/bet.service.js';
 import { parseId } from '../utils/validation.js';
 import { HttpError, sendError } from '../utils/http-error.js';
+import { RACE_TIMEZONE } from '../config/env.js';
 
 const badRequest = (res: Response, message: string) => sendError(res, 400, message);
 
@@ -77,10 +78,10 @@ export class BetsController {
       // Lock the race, then the bet (same order as settlement) so the race status
       // cannot change meanwhile and the same bet cannot be refunded twice
       const raceResult = await client.query(
-        `SELECT r.status FROM races r
+        `SELECT r.status, (r.date + r.time) <= (now() AT TIME ZONE $3) as started FROM races r
          WHERE r.id = (SELECT race_id FROM bets WHERE id = $1 AND user_id = $2)
          FOR SHARE`,
-        [betId, req.user.id]
+        [betId, req.user.id, RACE_TIMEZONE]
       );
 
       const betResult = await client.query(
@@ -97,7 +98,7 @@ export class BetsController {
       if (bet.status !== 'pending') {
         throw new HttpError(400, 'Can only cancel pending bets');
       }
-      if (raceResult.rows[0].status !== 'scheduled') {
+      if (raceResult.rows[0].status !== 'scheduled' || raceResult.rows[0].started) {
         throw new HttpError(400, 'Cannot cancel a bet once the race has started');
       }
 

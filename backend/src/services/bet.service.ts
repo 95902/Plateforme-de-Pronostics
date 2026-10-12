@@ -1,6 +1,7 @@
 import pool from '../config/database.js';
 import { parseAmount, parseId } from '../utils/validation.js';
 import { HttpError } from '../utils/http-error.js';
+import { RACE_TIMEZONE } from '../config/env.js';
 
 const SELECTIONS_BY_BET_TYPE: Record<string, number> = {
   simple: 1,
@@ -51,13 +52,15 @@ export class BetService {
 
       // Lock the race row so its status cannot change while the bet is placed
       const raceResult = await client.query(
-        'SELECT id, status FROM races WHERE id = $1 FOR SHARE',
-        [raceId]
+        `SELECT id, status, (date + time) <= (now() AT TIME ZONE $2) as started
+         FROM races WHERE id = $1 FOR SHARE`,
+        [raceId, RACE_TIMEZONE]
       );
       if (raceResult.rows.length === 0) {
         throw new HttpError(404, 'Race not found');
       }
-      if (raceResult.rows[0].status !== 'scheduled') {
+      // Closed as soon as the race starts, even before the background job marks it running
+      if (raceResult.rows[0].status !== 'scheduled' || raceResult.rows[0].started) {
         throw new HttpError(400, 'Betting is closed for this race');
       }
 
