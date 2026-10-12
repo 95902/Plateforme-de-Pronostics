@@ -1,5 +1,6 @@
 import pool from '../config/database.js';
-import predictionService from './prediction.service.js';
+import { predictionScore } from './prediction-model.js';
+import { loadRunnersWithFeatures } from './runner-features.service.js';
 import betService from './bet.service.js';
 import { analyzeRace, decideBets, nextState, proposeBets, totalStake as sumStakes, INITIAL_STATE } from './strategy-engine.js';
 import type { EngineRunner, StrategyState, StrategyType } from './strategy-engine.js';
@@ -63,37 +64,21 @@ const toISODate = (date: Date) =>
 
 export class StrategyService {
   /**
-   * Load the runners of several races with what the prediction model needs,
-   * scored and ready for the strategy engine.
+   * Load the runners of several races, scored with statistics known before each race,
+   * ready for the strategy engine.
    */
-  async loadEngineRunners(races: { id: number; distance: number }[]): Promise<Map<number, EngineRunner[]>> {
+  async loadEngineRunners(races: { id: number }[]): Promise<Map<number, EngineRunner[]>> {
     const byRace = new Map<number, EngineRunner[]>();
-    if (races.length === 0) return byRace;
-
-    const raceById = new Map(races.map((race) => [race.id, race]));
-    const result = await pool.query(
-      `SELECT
-        r.id, r.race_id, r.saddle_number,
-        COALESCE(r.final_odds, r.morning_odds) as odds,
-        h.career_total_races, h.career_wins, h.optimal_distance,
-        j.career_win_rate as jockey_win_rate,
-        t.career_win_rate as trainer_win_rate
-       FROM runners r
-       JOIN horses h ON r.horse_id = h.id
-       JOIN jockeys j ON r.jockey_id = j.id
-       JOIN trainers t ON r.trainer_id = t.id
-       WHERE r.race_id = ANY($1::int[]) AND NOT r.non_runner`,
-      [races.map((race) => race.id)]
-    );
-
-    for (const row of result.rows) {
-      const race = raceById.get(row.race_id)!;
-      const score = predictionService.calculatePredictionScore({ ...row, final_odds: row.odds }, race);
-      const runners = byRace.get(row.race_id) ?? [];
-      runners.push({ runner_id: row.id, saddle_number: row.saddle_number, odds: row.odds, score });
-      byRace.set(row.race_id, runners);
+    for (const runner of await loadRunnersWithFeatures(races.map((race) => race.id))) {
+      const runners = byRace.get(runner.race_id) ?? [];
+      runners.push({
+        runner_id: runner.runner_id,
+        saddle_number: runner.saddle_number,
+        odds: runner.odds ?? 0,
+        score: predictionScore(runner.features, runner.odds)
+      });
+      byRace.set(runner.race_id, runners);
     }
-
     return byRace;
   }
 

@@ -112,11 +112,13 @@ export interface RaceFixture {
   raceId: number;
   /** Runner ids, in the order of the odds passed in */
   runnerIds: number[];
+  horseIds: number[];
+  jockeyIds: number[];
 }
 
 /**
- * Create a race with one runner per odds value. All horses, jockeys and trainers have the
- * same statistics, so the prediction ranking depends only on the odds (lowest = best).
+ * Create a race with one runner per odds value. Horses, jockeys and trainers are new (no history)
+ * unless reused through `people`, so by default the prediction ranking depends only on the odds.
  *
  * `startsInMinutes` places the race relative to now in RACE_TIMEZONE (negative = already started);
  * otherwise `date` is used.
@@ -125,12 +127,17 @@ export async function createRace({
   odds,
   status = 'scheduled',
   date = '2030-01-01',
-  startsInMinutes
+  startsInMinutes,
+  distance = 2000,
+  people = []
 }: {
   odds: number[];
   status?: 'scheduled' | 'running' | 'finished' | 'cancelled';
   date?: string;
   startsInMinutes?: number;
+  distance?: number;
+  /** Reuse an existing horse, jockey or trainer for the runner at the same index */
+  people?: { horseId?: number; jockeyId?: number; trainerId?: number }[];
 }): Promise<RaceFixture> {
   if (hippodromeId === null) {
     const [hippodrome] = await query<{ id: number }>(
@@ -144,39 +151,42 @@ export async function createRace({
   const [race] = await query<{ id: number }>(
     startsInMinutes === undefined
       ? `INSERT INTO races (hippodrome_id, race_number, date, time, name, race_type, distance, status)
-         VALUES ($1, $2, $3::date, '15:00', $4, 'Plat', 2000, $5) RETURNING id`
+         VALUES ($1, $2, $3::date, '15:00', $4, 'Plat', $6, $5) RETURNING id`
       : `INSERT INTO races (hippodrome_id, race_number, date, time, name, race_type, distance, status)
          VALUES ($1, $2, (now() AT TIME ZONE $6 + make_interval(mins => $3))::date,
-                 (now() AT TIME ZONE $6 + make_interval(mins => $3))::time, $4, 'Plat', 2000, $5) RETURNING id`,
+                 (now() AT TIME ZONE $6 + make_interval(mins => $3))::time, $4, 'Plat', $7, $5) RETURNING id`,
     startsInMinutes === undefined
-      ? [hippodromeId, raceCounter, date, `Test race ${raceCounter}`, status]
-      : [hippodromeId, raceCounter, startsInMinutes, `Test race ${raceCounter}`, status, RACE_TIMEZONE]
+      ? [hippodromeId, raceCounter, date, `Test race ${raceCounter}`, status, distance]
+      : [hippodromeId, raceCounter, startsInMinutes, `Test race ${raceCounter}`, status, RACE_TIMEZONE, distance]
   );
 
   const runnerIds: number[] = [];
+  const horseIds: number[] = [];
+  const jockeyIds: number[] = [];
   for (const [index, value] of odds.entries()) {
-    const [horse] = await query<{ id: number }>(
-      `INSERT INTO horses (name, age, sex, career_total_races, career_wins, optimal_distance)
-       VALUES ($1, 5, 'M', 20, 4, 2000) RETURNING id`,
-      [`Horse ${raceCounter}-${index + 1}`]
-    );
-    const [jockey] = await query<{ id: number }>(
-      `INSERT INTO jockeys (name, career_win_rate) VALUES ($1, 0.15) RETURNING id`,
-      [`Jockey ${raceCounter}-${index + 1}`]
-    );
-    const [trainer] = await query<{ id: number }>(
-      `INSERT INTO trainers (name, career_win_rate) VALUES ($1, 0.15) RETURNING id`,
-      [`Trainer ${raceCounter}-${index + 1}`]
-    );
+    const reuse = people[index] ?? {};
+    const [horse] = reuse.horseId
+      ? [{ id: reuse.horseId }]
+      : await query<{ id: number }>(`INSERT INTO horses (name, age, sex) VALUES ($1, 5, 'M') RETURNING id`, [
+          `Horse ${raceCounter}-${index + 1}`
+        ]);
+    const [jockey] = reuse.jockeyId
+      ? [{ id: reuse.jockeyId }]
+      : await query<{ id: number }>(`INSERT INTO jockeys (name) VALUES ($1) RETURNING id`, [`Jockey ${raceCounter}-${index + 1}`]);
+    const [trainer] = reuse.trainerId
+      ? [{ id: reuse.trainerId }]
+      : await query<{ id: number }>(`INSERT INTO trainers (name) VALUES ($1) RETURNING id`, [`Trainer ${raceCounter}-${index + 1}`]);
     const [runner] = await query<{ id: number }>(
       `INSERT INTO runners (race_id, horse_id, jockey_id, trainer_id, saddle_number, morning_odds, final_odds)
        VALUES ($1, $2, $3, $4, $5, $6, $6) RETURNING id`,
       [race.id, horse.id, jockey.id, trainer.id, index + 1, value]
     );
     runnerIds.push(runner.id);
+    horseIds.push(horse.id);
+    jockeyIds.push(jockey.id);
   }
 
-  return { raceId: race.id, runnerIds };
+  return { raceId: race.id, runnerIds, horseIds, jockeyIds };
 }
 
 /** Insert the finishing order of a race directly (runner ids, winner first) */

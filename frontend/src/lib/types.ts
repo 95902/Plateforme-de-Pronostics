@@ -94,6 +94,10 @@ export interface Prediction {
   confidence_level: 'Low' | 'Medium' | 'High';
   is_value_bet: boolean;
   expected_value?: number;
+  /** Last runs before this race, most recent first ("1-0-3", 0 = not placed) */
+  form: string;
+  horse_starts: number;
+  horse_wins: number;
 }
 
 export interface BetSelection {
