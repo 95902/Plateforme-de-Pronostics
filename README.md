@@ -413,6 +413,16 @@ For French flat races, results can be fetched from Open PMU API (unofficial sour
 ```bash
 npm run fetch:open-pmu -- --from 2025-01-01 --to 2025-03-31   # [--discipline all] [--dry-run] [--save dir]
 ```
+Today's and tomorrow's Pick 5 races (field and press tips) can be scraped from turfpronos.fr (private use only):
+
+```bash
+npm run fetch:turfpronos                                  # today's and tomorrow's Pick 5 races
+npm run fetch:turfpronos -- --day today --bet all         # [--day today|tomorrow|both] [--bet pick5|quinte|all] [--dry-run] [--save dir]
+```
+Each race is imported as scheduled (no odds on that site) and its press tips, with the site's
+synthesis, are shown on the race page ("Press Tips"). It shares its race id with Open PMU, so
+fetching the results afterwards completes the same race.
+
 See [`docs/sources-de-donnees.md`](docs/sources-de-donnees.md) for the available data sources and
 their licensing constraints.
 

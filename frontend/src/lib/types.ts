@@ -68,6 +68,16 @@ export interface RaceResult {
   horse_name: string;
 }
 
+export interface RaceTip {
+  source: string;
+  /** Newspaper or tipster; the site's synthesis has is_consensus = true */
+  tipster: string;
+  /** Saddle numbers, in the tipster's order */
+  selection: number[];
+  is_consensus: boolean;
+  fetched_at: string;
+}
+
 export interface RaceDetail {
   id: number;
   name: string;
@@ -83,6 +93,7 @@ export interface RaceDetail {
   surface: string;
   runners: Runner[];
   results: RaceResult[];
+  tips: RaceTip[];
 }
 
 export interface Prediction {

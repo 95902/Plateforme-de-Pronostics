@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../config/database.js';
 import settlementService from '../services/settlement.service.js';
+import tipsService from '../services/tips.service.js';
 import { RACE_TIMEZONE } from '../config/env.js';
 import { parseId } from '../utils/validation.js';
 import { HttpError, sendError } from '../utils/http-error.js';
@@ -150,7 +151,8 @@ export class RacesController {
       res.json({
         ...race,
         runners: runnersResult.rows,
-        results
+        results,
+        tips: await tipsService.getRaceTips(id)
       });
     } catch (error) {
       console.error('Get race by ID error:', error);

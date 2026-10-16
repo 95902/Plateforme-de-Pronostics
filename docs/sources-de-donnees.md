@@ -104,6 +104,31 @@ courses (partants, cotes, arrivées, rapports), pour que les pronostics et les b
     fausseraient les probabilités) ; les ex æquo aussi pour l'instant ;
   - aucun engagement de disponibilité ; à utiliser avec modération et pour un usage privé.
 
+## Pronostics de la presse : turfpronos.fr (octobre 2026)
+
+Le site [turfpronos.fr](https://www.turfpronos.fr/) rassemble les pronostics de plusieurs journaux
+(CanalTurf, Equidia, ZEturf…) et en calcule une **synthèse**. Ses pages sont rendues côté serveur :
+un simple parseur HTML suffit (`backend/src/services/import/adapters/turfpronos.ts`).
+
+```bash
+cd backend
+npm run fetch:turfpronos                              # courses Pick 5 du jour et du lendemain
+npm run fetch:turfpronos -- --day tomorrow --bet all  # Pick 5 et Quinté+ de demain seulement
+npm run fetch:turfpronos -- --dry-run                 # lire sans rien enregistrer
+```
+
+- Parcours : page d'accueil → toutes les courses marquées « pronostic pick5 » (ou « quinte ») du jour et du lendemain →
+  page `course?id=N` → tableau des partants (onglet Tableau) et pronostics + synthèse (onglet Pronostics).
+- Chaque course est importée **au statut prévu**, avec ses partants (poids, sexe, âge, jockey,
+  entraîneur), sous le même identifiant que les arrivées Open PMU (`openpmu-AAAA-MM-JJ-RxCy`) : les
+  résultats importés ensuite complètent la même course.
+- Les pronostics sont enregistrés dans `race_tips` (un rang par journal, la synthèse marquée
+  `is_consensus`) et affichés sur la page de la course. Relancer la commande les remplace.
+- Limites : **pas de cotes** (les paris et les pronostics du modèle en ont besoin), pas d'arrivées,
+  le pays de l'hippodrome n'est pas donné (France supposé), la corde n'est pas encore importée, et
+  l'affichage des non-partants sur ce site n'a pas encore été observé. Scraping d'un site tiers :
+  usage privé uniquement, une requête toutes les 1,5 s.
+
 ## Questions (posées avant la décision)
 
 - Visez-vous un usage **privé** (outil personnel) ou **public** (site ouvert, payant ou non) ? Les
