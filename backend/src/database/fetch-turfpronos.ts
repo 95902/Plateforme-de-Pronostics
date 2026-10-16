@@ -15,11 +15,11 @@ import {
 import type { TurfPronosBet } from '../services/import/adapters/turfpronos.js';
 
 /**
- * Fetch the day's Pick 5 races from www.turfpronos.fr: import each race (field, as scheduled) and
+ * Fetch today's and tomorrow's Pick 5 races from www.turfpronos.fr: import each race (field, as scheduled) and
  * save the press tips with their synthesis.
  *
  *   npm run fetch:turfpronos
- *     [--day today|tomorrow]     (default today)
+ *     [--day today|tomorrow|both] (default both)
  *     [--bet pick5|quinte|all]   (default pick5, repeatable)
  *     [--save <dir>]             also write each parsed page (JSON)
  *     [--dry-run]                fetch and parse only, nothing saved
@@ -37,7 +37,7 @@ function parseArgs(argv: string[]) {
   };
   const bets = argv.flatMap((arg, index) => (arg === '--bet' && argv[index + 1] ? [argv[index + 1]] : []));
   return {
-    day: value('--day') ?? 'today',
+    day: value('--day') ?? 'both',
     bets: bets.includes('all') ? [...TURFPRONOS_BETS] : bets.length > 0 ? bets : ['pick5'],
     saveDir: value('--save'),
     dryRun: argv.includes('--dry-run'),
@@ -59,22 +59,28 @@ async function fetchPage(path: string): Promise<string> {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const invalidBets = args.bets.filter((bet) => !(TURFPRONOS_BETS as readonly string[]).includes(bet));
-  if ((args.day !== 'today' && args.day !== 'tomorrow') || invalidBets.length > 0 || !Number.isFinite(args.delayMs)) {
-    console.error('Usage: npm run fetch:turfpronos -- [--day today|tomorrow] [--bet pick5|quinte|all] [--save dir] [--dry-run] [--delay-ms 1500]');
+  if (!['today', 'tomorrow', 'both'].includes(args.day) || invalidBets.length > 0 || !Number.isFinite(args.delayMs)) {
+    console.error('Usage: npm run fetch:turfpronos -- [--day today|tomorrow|both] [--bet pick5|quinte|all] [--save dir] [--dry-run] [--delay-ms 1500]');
     process.exit(1);
   }
   if (args.saveDir) mkdirSync(args.saveDir, { recursive: true });
 
-  let home: ReturnType<typeof parseHomePage>;
+  // The home page lists today's and tomorrow's races
+  let homePage: string;
   try {
-    home = parseHomePage(await fetchPage('./'), args.day as 'today' | 'tomorrow');
+    homePage = await fetchPage('./');
   } catch (error) {
     console.error(`❌ Home page: request failed (${(error as Error).message})`);
     await pool.end();
     process.exit(1);
   }
-  const links = home.races.filter((race) => args.bets.includes(race.bet as TurfPronosBet));
-  console.log(`📅 ${home.date ?? args.day}: ${links.length} race(s) (${args.bets.join(', ')})`);
+  const days = args.day === 'both' ? (['today', 'tomorrow'] as const) : [args.day as 'today' | 'tomorrow'];
+  const links = days.flatMap((day) => {
+    const home = parseHomePage(homePage, day);
+    const races = home.races.filter((race) => args.bets.includes(race.bet as TurfPronosBet));
+    console.log(`📅 ${home.date ?? day}: ${races.length} race(s) (${args.bets.join(', ')})`);
+    return races;
+  });
 
   const totals = { races: 0, failed: 0, created: 0, updated: 0, tips: 0 };
   for (const link of links) {

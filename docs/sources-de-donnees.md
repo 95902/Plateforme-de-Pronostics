@@ -112,12 +112,12 @@ un simple parseur HTML suffit (`backend/src/services/import/adapters/turfpronos.
 
 ```bash
 cd backend
-npm run fetch:turfpronos                              # courses Pick 5 du jour
-npm run fetch:turfpronos -- --day tomorrow --bet all  # Pick 5 et Quinté+ de demain
+npm run fetch:turfpronos                              # courses Pick 5 du jour et du lendemain
+npm run fetch:turfpronos -- --day tomorrow --bet all  # Pick 5 et Quinté+ de demain seulement
 npm run fetch:turfpronos -- --dry-run                 # lire sans rien enregistrer
 ```
 
-- Parcours : page d'accueil → courses marquées « pronostic pick5 » (ou « quinte ») de la journée →
+- Parcours : page d'accueil → toutes les courses marquées « pronostic pick5 » (ou « quinte ») du jour et du lendemain →
   page `course?id=N` → tableau des partants (onglet Tableau) et pronostics + synthèse (onglet Pronostics).
 - Chaque course est importée **au statut prévu**, avec ses partants (poids, sexe, âge, jockey,
   entraîneur), sous le même identifiant que les arrivées Open PMU (`openpmu-AAAA-MM-JJ-RxCy`) : les
