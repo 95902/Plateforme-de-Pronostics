@@ -107,7 +107,7 @@ courses (partants, cotes, arrivées, rapports), pour que les pronostics et les b
 ## Pronostics de la presse : turfpronos.fr (octobre 2026)
 
 Le site [turfpronos.fr](https://www.turfpronos.fr/) rassemble les pronostics de plusieurs journaux
-(CanalTurf, Equidia, ZEturf…) et en calcule une **synthèse**. Ses pages sont rendues côté serveur :
+(CanalTurf, Equidia, ZEturf, Zone-Turf…, selon les courses) et en calcule une **synthèse**. Ses pages sont rendues côté serveur :
 un simple parseur HTML suffit (`backend/src/services/import/adapters/turfpronos.ts`).
 
 ```bash

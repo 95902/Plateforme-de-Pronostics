@@ -57,6 +57,32 @@ test('race page: race details, field, press tips and synthesis', () => {
   assert.deepEqual(parsed.scores.slice(0, 2), [{ saddle_number: 14, score: 3.9 }, { saddle_number: 1, score: 2.7 }]);
 });
 
+test('race page: every press row is kept, Zone-Turf.fr included (hurdle race, browser-rendered markup)', () => {
+  const parsed = parseCoursePage(fixture('turfpronos-course-zone-turf.html'));
+
+  assert.equal(parsed.date, '2026-10-17');
+  assert.equal(parsed.reunion, 1);
+  assert.equal(parsed.race_number, 7);
+  assert.equal(parsed.name, 'PRIX SOULANGE-BODIN');
+  assert.equal(parsed.racecourse, 'AUTEUIL');
+  assert.equal(parsed.time, '17:53');
+  assert.equal(parsed.speciality, 'HAIE');
+
+  assert.deepEqual(parsed.tips.map((tip) => tip.tipster), ['CanalTurf.com', 'Equidia', 'Zone-Turf.fr']);
+  assert.deepEqual(parsed.tips[2].selection, [11, 15, 12, 10, 4, 14, 5, 6]);
+  assert.deepEqual(parsed.consensus, [11, 12, 15, 14, 10, 6, 4, 9]);
+
+  assert.equal(parsed.runners.length, 18);
+  // No draw in jump races; "&amp;" decoded
+  assert.equal(parsed.runners[14].draw, undefined);
+  assert.equal(parsed.runners[14].trainer, 'N. GEORGE & A. ZETTERHOLM');
+
+  const race = toImportRace(parsed);
+  assert.notEqual(typeof race, 'string');
+  assert.equal((race as Exclude<typeof race, string>).discipline, 'Obstacles');
+  assert.deepEqual(validateImport({ races: [race] }).errors, []);
+});
+
 test('race page: tips not published yet', () => {
   const withoutTips = course.replace(/<tbody><tr><td>CanalTurf[\s\S]*?<\/tbody>/, '<tbody></tbody>').replace(/var scoreRes[^\n]*\n/, '');
   const parsed = parseCoursePage(withoutTips);
