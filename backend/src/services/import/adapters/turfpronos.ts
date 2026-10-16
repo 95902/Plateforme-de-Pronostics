@@ -218,7 +218,9 @@ function parseScores(html: string): TurfPronosCourse['scores'] {
 
 /** Parse a race page (course?id=N). Throws when the page is not a race page. */
 export function parseCoursePage(html: string): TurfPronosCourse {
-  const title = htmlText(html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? '');
+  // Page title, or the <h1> when there is none (e.g. markup copied from the browser's inspector)
+  const title =
+    htmlText(html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? '') || htmlText(html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ?? '');
   // "R4C9 - PRIX DE LA MALMONTAGNE - Vendredi 16 Octobre 2026 | TurfPronos"; the name may contain " - "
   const heading = title.match(/^R(\d+)\s*C(\d+)\s*-\s*(.*?)\s*-\s*\S+\s+(\d{1,2})\s+(\S+)\s+(\d{4})\b/i);
   const date = heading && parseFrenchDate(heading[4], heading[5], heading[6]);
