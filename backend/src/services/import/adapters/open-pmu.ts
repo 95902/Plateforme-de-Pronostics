@@ -53,6 +53,13 @@ export interface ConvertResult {
 
 const UNKNOWN = 'Inconnu';
 
+/**
+ * External id of a PMU race (meeting R, race C of a day). Shared by the adapters that cover the
+ * same races (e.g. turfpronos imports the field before the race, Open PMU the results after it),
+ * so they complete the same race instead of creating two.
+ */
+export const pmuRaceExternalId = (date: string, reunion: number | string, race: number | string) => `openpmu-${date}-R${reunion}C${race}`;
+
 /** Discipline from the PMU labels (Plat, Attelé, Monté, Haies, Steeple-chase, Cross) */
 export function mapDiscipline(label: string | null): ImportRace['discipline'] | null {
   const normalized = (label ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
@@ -113,7 +120,7 @@ function convertRace(race: OpenPmuRace, options: Required<ConvertOptions>): Impo
   if (new Set(positions).size !== positions.length) return 'dead heat (shared position), not supported yet';
 
   return {
-    external_id: `openpmu-${race.date}-R${match[1]}C${match[2]}`,
+    external_id: pmuRaceExternalId(race.date, match[1], match[2]),
     date: race.date,
     time: (race.heure_depart ?? '00:00').slice(0, 5),
     racecourse: { name: race.lieu || UNKNOWN, country: 'France' },

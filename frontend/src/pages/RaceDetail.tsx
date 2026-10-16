@@ -401,6 +401,44 @@ export default function RaceDetail({ user, onBankrollChange }: RaceDetailProps) 
         </div>
       </div>
 
+      {/* Press tips gathered from an external site */}
+      {race.tips?.length > 0 && (
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b">
+            <h2 className="text-xl font-bold text-gray-900">📰 Press Tips</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Source: {[...new Set(race.tips.map((tip) => tip.source))].join(', ')} — fetched{' '}
+              {new Date(Math.max(...race.tips.map((tip) => new Date(tip.fetched_at).getTime()))).toLocaleString()}
+            </p>
+          </div>
+          <div className="divide-y">
+            {race.tips.map((tip) => (
+              <div
+                key={`${tip.source}-${tip.tipster}`}
+                className={`px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-2 ${tip.is_consensus ? 'bg-blue-50' : ''}`}
+              >
+                <span className={`sm:w-40 ${tip.is_consensus ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
+                  {tip.is_consensus ? 'Synthesis' : tip.tipster}
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {tip.selection.map((saddle, index) => (
+                    <span
+                      key={index}
+                      title={race.runners.find((runner) => runner.saddle_number === saddle)?.horse_name}
+                      className={`w-8 h-8 flex items-center justify-center rounded text-sm font-medium ${
+                        tip.is_consensus && index < 5 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {saddle}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Runners List */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b">
